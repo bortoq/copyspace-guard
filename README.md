@@ -281,7 +281,7 @@ gates:
 
 ```bash
 docker build -t copyspace-guard .
-docker run --rm -v "$PWD:/work" copyspace-guard analyze \
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" copyspace-guard analyze \
   --csv examples/ring15.csv \
   --bw 256 \
   --roi examples/roi.yml \

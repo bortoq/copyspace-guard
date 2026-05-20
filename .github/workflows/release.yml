@@ -28,7 +28,7 @@ jobs:
       - name: Docker smoke
         run: |
           docker build -t copyspace-guard:${{ github.ref_name }} .
-          docker run --rm -v "$PWD:/work" copyspace-guard:${{ github.ref_name }} analyze \
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" copyspace-guard:${{ github.ref_name }} analyze \
             --csv examples/ring15.csv \
             --bw 256 \
             --summary-only \
