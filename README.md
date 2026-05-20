@@ -20,12 +20,14 @@ This package is intentionally small and pilot-friendly:
 From this directory:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -e .
 copyspace-guard analyze \
   --csv examples/ring15.csv \
   --bw 256 \
   --id ai-staging-ring15 \
-  --cost-per-tick 0.02 \
+  --roi examples/roi.yml \
   --outdir artifacts/demo
 ```
 
@@ -38,9 +40,9 @@ Open:
 Expected terminal shape:
 
 ```text
-baseline: status=PASS ticks=768 lb=512 gap=0.500000 util=0.7143
-greedy:   status=PASS ticks=549 lb=512 gap=0.072266 util=0.9992
-saved_ticks=219 estimated_savings=4.38
+baseline: status=PASS ticks=768 lb=549 gap=0.398907 util=0.7143
+greedy:   status=PASS ticks=549 lb=549 gap=0.000000 util=0.9992
+saved_ticks=219 estimated_savings=9.73
 ```
 
 The exact numbers depend on the input CSV and bandwidth value.
@@ -166,7 +168,7 @@ Included:
 - deterministic baseline and greedy schedules;
 - STRICT1 validator;
 - lower-bound gap and utilization metrics;
-- estimated savings using a simple `$ per tick` assumption;
+- ROI estimates via `roi.yml` or a simple `$ per tick` assumption;
 - sales-ready report artifacts.
 
 Not included yet:
@@ -263,3 +265,19 @@ copyspace-guard anonymize \
   --out anonymized_demands.csv \
   --mapping slot_mapping.json
 ```
+
+## Sales-oriented demos
+
+Bad current schedule vs candidate:
+
+```bash
+copyspace-guard analyze   --csv examples/demo_bad_current_demands.csv   --bw 256   --current-schedule-csv examples/demo_bad_current_schedule.csv   --roi examples/roi.yml   --outdir artifacts/bad-current-demo
+```
+
+Conflict detection:
+
+```bash
+copyspace-guard analyze   --csv examples/demo_conflict_demands.csv   --bw 256   --current-schedule-csv examples/demo_conflict_schedule.csv   --summary-only   --outdir artifacts/conflict-demo
+```
+
+Large workloads can use `--summary-only` to avoid writing full schedule JSON/CSV artifacts.

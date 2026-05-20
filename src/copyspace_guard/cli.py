@@ -52,10 +52,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     roi_summary = compute_roi(comp, roi_config)
 
     dump_json(outdir / "instance.json", inst)
-    dump_json(outdir / f"schedule_{current_label}.json", current)
-    write_schedule_csv(outdir / f"schedule_{current_label}.csv", current)
-    dump_json(outdir / "schedule_greedy.json", greedy)
-    write_schedule_csv(outdir / "schedule_greedy.csv", greedy)
+    if not args.summary_only:
+        dump_json(outdir / f"schedule_{current_label}.json", current)
+        write_schedule_csv(outdir / f"schedule_{current_label}.csv", current)
+        dump_json(outdir / "schedule_greedy.json", greedy)
+        write_schedule_csv(outdir / "schedule_greedy.csv", greedy)
     dump_json(outdir / f"report_{current_label}.json", rep_current.to_dict())
     dump_json(outdir / "report_greedy.json", rep_greedy.to_dict())
     summary = {
@@ -67,10 +68,10 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         "roi": roi_summary,
         "artifacts": {
             "instance": "instance.json",
-            "schedule_current": f"schedule_{current_label}.json",
-            "schedule_current_csv": f"schedule_{current_label}.csv",
-            "schedule_greedy": "schedule_greedy.json",
-            "schedule_greedy_csv": "schedule_greedy.csv",
+            "schedule_current": None if args.summary_only else f"schedule_{current_label}.json",
+            "schedule_current_csv": None if args.summary_only else f"schedule_{current_label}.csv",
+            "schedule_greedy": None if args.summary_only else "schedule_greedy.json",
+            "schedule_greedy_csv": None if args.summary_only else "schedule_greedy.csv",
             "report_current": f"report_{current_label}.json",
             "report_greedy": "report_greedy.json",
             "report_markdown": "report.md",
@@ -170,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
     a.add_argument("--current-schedule-json", default=None, help="optional customer/current schedule JSON")
     a.add_argument("--current-schedule-csv", default=None, help="optional customer/current schedule CSV: tick,src_slot,dst_slot,len_bits")
+    a.add_argument("--summary-only", action="store_true", help="do not write full schedule JSON/CSV artifacts")
     a.add_argument("--outdir", default="artifacts/analysis")
     a.set_defaults(func=cmd_analyze)
 

@@ -7,7 +7,7 @@ name = "copyspace-guard"
 version = "0.1.0"
 description = "Deterministic data-movement audit, validation and optimization reports"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [{name = "Copy-Space Guard"}]
 dependencies = []

@@ -29,7 +29,9 @@ def metric_table(current: Report, candidate: Report, comparison: Dict[str, Any],
     rows = [
         ("Validation status", current.status, candidate.status),
         ("Ticks total", str(current.ticks_total), str(candidate.ticks_total)),
-        ("Lower-bound ticks", str(current.lower_bound_ticks), str(candidate.lower_bound_ticks)),
+        ("Degree lower bound", str(current.degree_lower_bound), str(candidate.degree_lower_bound)),
+        ("Capacity lower bound", str(current.capacity_lower_bound), str(candidate.capacity_lower_bound)),
+        ("Effective lower-bound ticks", str(current.lower_bound_ticks), str(candidate.lower_bound_ticks)),
         ("Gap to lower bound", pct(current.gap_to_lower_bound), pct(candidate.gap_to_lower_bound)),
         ("Utilization", pct(current.utilization), pct(candidate.utilization)),
         ("Bits moved", f"{current.bits_total:,}", f"{candidate.bits_total:,}"),
@@ -100,7 +102,9 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 
 ## Commercial interpretation
 
-- `lower_bound_ticks` is a deterministic lower bound from endpoint degree pressure.
+- `degree_lower_bound` is derived from endpoint pressure.
+- `capacity_lower_bound` is derived from total chunks divided by per-tick matching capacity.
+- `lower_bound_ticks` is the maximum of currently implemented deterministic lower bounds.
 - `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared STRICT1 model.
 - A positive saved-ticks number is potential time/capacity savings per workload run before deeper topology-specific modeling.
 - The tool is metadata-only: it requires transfer demand metadata, not payload data.

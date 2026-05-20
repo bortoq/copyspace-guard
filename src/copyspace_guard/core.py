@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass, asdict
+import math
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple, Any
+from typing import Any, Dict, Iterable, List, Tuple
 
 MODEL = "STRICT1"
 
@@ -25,7 +26,9 @@ class Report:
     bits_per_tick: float = 0.0
     expected_bits_per_tick: int = 0
     utilization: float = 0.0
-    max_degree_chunks: int = 0
+    degree_lower_bound: int = 0
+    capacity_lower_bound: int = 0
+    max_degree_chunks: int = 0  # kept for v0 compatibility; equals degree_lower_bound
     lower_bound_ticks: int = 0
     gap_ticks: int = 0
     gap_to_lower_bound: float = 0.0
@@ -73,7 +76,13 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
     return rows
 
 
-def instance_from_csv(path: str | Path, bw: int, slots: int | None = None, instance_id: str | None = None, notes: str | None = None) -> Instance:
+def instance_from_csv(
+    path: str | Path,
+    bw: int,
+    slots: int | None = None,
+    instance_id: str | None = None,
+    notes: str | None = None,
+) -> Instance:
     if bw <= 0:
         raise ValueError("copy bandwidth per tick must be > 0")
     rows = read_demands_csv(path)
@@ -171,7 +180,8 @@ def solve_baseline(inst: Instance) -> Schedule:
                 continue
             l = min(bw, rem)
             tick.append({"src_slot": s, "dst_slot": t, "len_bits": l})
-            used.add(s); used.add(t)
+            used.add(s)
+            used.add(t)
             if rem - l > 0:
                 new_pending.append({"src_slot": s, "dst_slot": t, "rem_bits": rem - l})
         if not tick:
@@ -215,8 +225,10 @@ def solve_greedy(inst: Instance) -> Schedule:
                 continue
             l = min(bw, rem)
             tick.append({"src_slot": s, "dst_slot": t, "len_bits": l})
-            chosen[i] = True; chosen_len[i] = l
-            used.add(s); used.add(t)
+            chosen[i] = True
+            chosen_len[i] = l
+            used.add(s)
+            used.add(t)
         if not tick:
             raise RuntimeError("greedy solver made no progress")
         new_pending: List[Dict[str, int]] = []
@@ -232,14 +244,30 @@ def solve_greedy(inst: Instance) -> Schedule:
     return {"version": 0, "model": MODEL, "ticks": ticks}
 
 
-def lower_bound_ticks(inst: Instance) -> int:
+def lower_bound_components(inst: Instance) -> Dict[str, int]:
     slots, bw, _demands = validate_instance(inst)
+    dm = demand_map(inst)
     deg = [0] * slots
-    for (s, t), bits in demand_map(inst).items():
+    total_chunks = 0
+    for (s, t), bits in dm.items():
         chunks = (bits + bw - 1) // bw
+        total_chunks += chunks
         deg[s] += chunks
         deg[t] += chunks
-    return max(deg) if deg else 0
+    degree_lb = max(deg) if deg else 0
+    tick_capacity = slots // 2
+    capacity_lb = math.ceil(total_chunks / tick_capacity) if tick_capacity > 0 else 0
+    return {
+        "degree_lower_bound": degree_lb,
+        "capacity_lower_bound": capacity_lb,
+        "lower_bound_ticks": max(degree_lb, capacity_lb),
+        "total_chunks": total_chunks,
+        "tick_capacity_chunks": tick_capacity,
+    }
+
+
+def lower_bound_ticks(inst: Instance) -> int:
+    return lower_bound_components(inst)["lower_bound_ticks"]
 
 
 def fail_report(kind: str, msg: str, **ctx: Any) -> Report:
@@ -253,55 +281,116 @@ def validate_schedule(inst: Instance, sched: Schedule) -> Report:
         slots, bw, _demands = validate_instance(inst)
     except Exception as e:
         return fail_report("INSTANCE", str(e))
+
     if not isinstance(sched, dict):
         return fail_report("STRUCT", "schedule must be an object")
-    if sched.get("version") != 0 or sched.get("model") != MODEL:
-        return fail_report("STRUCT", "schedule.version/model mismatch")
+    if sched.get("version") != 0:
+        return fail_report("STRUCT", "schedule.version must be 0")
+    if sched.get("model") != MODEL:
+        return fail_report("STRUCT", f'schedule.model must be "{MODEL}"')
     ticks = sched.get("ticks")
     if not isinstance(ticks, list):
         return fail_report("STRUCT", "schedule.ticks must be a list")
 
+    errors: List[Dict[str, Any]] = []
     scheduled: Dict[Tuple[int, int], int] = {}
     bits_total = 0
+
+    def add_error(kind: str, msg: str, **ctx: Any) -> None:
+        err = {"kind": kind, "msg": msg}
+        err.update(ctx)
+        errors.append(err)
+
     for ti, tick in enumerate(ticks):
         if not isinstance(tick, list):
-            return fail_report("STRUCT", "tick must be a list", tick=ti)
+            add_error("STRUCT", "tick must be a list", tick=ti)
+            continue
         used = set()
         for ci, ch in enumerate(tick):
+            if not isinstance(ch, dict):
+                add_error("STRUCT", "chunk must be an object", tick=ti, chunk=ci)
+                continue
             try:
                 s, t, l = int(ch["src_slot"]), int(ch["dst_slot"]), int(ch["len_bits"])
             except Exception:
-                return fail_report("STRUCT", "chunk must contain integer src_slot,dst_slot,len_bits", tick=ti, chunk=ci)
-            if s < 0 or t < 0 or s >= slots or t >= slots or s == t:
-                return fail_report("STRUCT", "slot bounds/self-copy violation", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
-            if l <= 0 or l > bw:
-                return fail_report("BANDWIDTH", "len_bits out of allowed range", tick=ti, chunk=ci, len_bits=l, bw=bw)
-            if s in used or t in used:
-                return fail_report("STRICT1", "slot participates more than once in one tick", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
-            used.add(s); used.add(t)
-            scheduled[(s, t)] = scheduled.get((s, t), 0) + l
-            bits_total += l
+                add_error("STRUCT", "chunk must contain integer src_slot,dst_slot,len_bits", tick=ti, chunk=ci)
+                continue
 
-    dm = demand_map(inst)
-    for pair, sbits in scheduled.items():
+            chunk_valid = True
+            if s < 0 or t < 0 or s >= slots or t >= slots:
+                add_error("STRUCT", "slot out of bounds", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
+                chunk_valid = False
+            if s == t:
+                add_error("STRUCT", "src_slot == dst_slot", tick=ti, chunk=ci, slot=s)
+                chunk_valid = False
+            if l <= 0 or l > bw:
+                add_error("BANDWIDTH", "len_bits out of allowed range", tick=ti, chunk=ci, len_bits=l, bw=bw)
+                chunk_valid = False
+            if s in used or t in used:
+                add_error("STRICT1", "slot participates more than once in one tick", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
+                chunk_valid = False
+
+            if chunk_valid:
+                used.add(s)
+                used.add(t)
+                scheduled[(s, t)] = scheduled.get((s, t), 0) + l
+                bits_total += l
+            else:
+                # Even invalid chunks reserve endpoints for further STRICT1 diagnostics in the same tick.
+                if 0 <= s < slots:
+                    used.add(s)
+                if 0 <= t < slots:
+                    used.add(t)
+
+    try:
+        dm = demand_map(inst)
+    except Exception as e:
+        return fail_report("INSTANCE", str(e))
+
+    for pair, sbits in sorted(scheduled.items()):
         if pair not in dm:
-            return fail_report("EXTRAS", "scheduled pair not present in demands", src_slot=pair[0], dst_slot=pair[1], scheduled_bits=sbits)
-    for pair, dbits in dm.items():
+            add_error("EXTRAS", "scheduled pair not present in demands", src_slot=pair[0], dst_slot=pair[1], scheduled_bits=sbits)
+    for pair, dbits in sorted(dm.items()):
         sbits = scheduled.get(pair, 0)
         if sbits != dbits:
-            return fail_report("COVERAGE", "demand coverage mismatch", src_slot=pair[0], dst_slot=pair[1], demand_bits=dbits, scheduled_bits=sbits)
+            subkind = "COVERAGE_UNDER" if sbits < dbits else "COVERAGE_OVER"
+            add_error(
+                "COVERAGE",
+                "demand coverage mismatch",
+                subkind=subkind,
+                src_slot=pair[0],
+                dst_slot=pair[1],
+                demand_bits=dbits,
+                scheduled_bits=sbits,
+            )
+
+    if errors:
+        return Report(status="FAIL", version=0, model=MODEL, errors=errors)
 
     ticks_total = len(ticks)
     bits_per_tick = bits_total / ticks_total if ticks_total > 0 else 0.0
     expected_bits_per_tick = (slots // 2) * bw
     utilization = bits_per_tick / expected_bits_per_tick if expected_bits_per_tick else 0.0
-    lb = lower_bound_ticks(inst)
+    lbs = lower_bound_components(inst)
+    lb = lbs["lower_bound_ticks"]
     gap = ticks_total - lb
     gap_ratio = gap / lb if lb > 0 else 0.0
     return Report(
-        status="PASS", version=0, model=MODEL, errors=[], ticks_total=ticks_total, bits_total=bits_total,
-        bits_per_tick=bits_per_tick, expected_bits_per_tick=expected_bits_per_tick, utilization=utilization,
-        max_degree_chunks=lb, lower_bound_ticks=lb, gap_ticks=gap, gap_to_lower_bound=gap_ratio,
+        status="PASS",
+        version=0,
+        model=MODEL,
+        errors=[],
+        ticks_total=ticks_total,
+        bits_total=bits_total,
+        bits_per_tick=bits_per_tick,
+        expected_bits_per_tick=expected_bits_per_tick,
+        utilization=utilization,
+        degree_lower_bound=lbs["degree_lower_bound"],
+        capacity_lower_bound=lbs["capacity_lower_bound"],
+        max_degree_chunks=lbs["degree_lower_bound"],
+        lower_bound_ticks=lb,
+        gap_ticks=gap,
+        gap_to_lower_bound=gap_ratio,
     )
 
 
@@ -320,12 +409,7 @@ def compare_reports(current: Report, candidate: Report, cost_per_tick: float = 0
 
 
 def schedule_from_csv(path: str | Path, *, fill_empty_ticks: bool = True) -> Schedule:
-    """Read customer schedule CSV: tick,src_slot,dst_slot,len_bits.
-
-    tick is a zero-based non-negative integer. Rows are grouped by tick and kept in
-    stable CSV order inside each tick. If fill_empty_ticks is True, missing tick
-    indices become empty ticks so ticks_total preserves elapsed windows.
-    """
+    """Read customer schedule CSV: tick,src_slot,dst_slot,len_bits."""
     rows: List[Tuple[int, Chunk]] = []
     with open(path, "r", encoding="utf-8", newline="") as f:
         sample = f.read(4096)
@@ -363,9 +447,6 @@ def schedule_from_csv(path: str | Path, *, fill_empty_ticks: bool = True) -> Sch
     max_tick = max(ti for ti, _ in rows)
     if fill_empty_ticks:
         ticks: List[List[Chunk]] = [[] for _ in range(max_tick + 1)]
-    else:
-        ticks = []
-    if fill_empty_ticks:
         for ti, ch in rows:
             ticks[ti].append(ch)
     else:
@@ -386,7 +467,13 @@ def write_schedule_csv(path: str | Path, sched: Schedule) -> None:
                 w.writerow([ti, ch["src_slot"], ch["dst_slot"], ch["len_bits"]])
 
 
-def gate_report(rep: Report, *, max_gap: float | None = None, min_utilization: float | None = None, max_ticks: int | None = None) -> Tuple[bool, List[str]]:
+def gate_report(
+    rep: Report,
+    *,
+    max_gap: float | None = None,
+    min_utilization: float | None = None,
+    max_ticks: int | None = None,
+) -> Tuple[bool, List[str]]:
     reasons: List[str] = []
     if rep.status != "PASS":
         reasons.append(f"status is {rep.status}, expected PASS")
@@ -421,19 +508,7 @@ def _parse_scalar(value: str) -> Any:
 
 
 def load_config(path: str | Path) -> Dict[str, Any]:
-    """Load a small JSON/YAML config without external dependencies.
-
-    Supported YAML subset is intentionally simple and enough for pilot configs:
-
-        roi:
-          tick_seconds: 1
-          gpu_count_blocked: 64
-        gates:
-          report: greedy
-          max_gap_to_lower_bound: 0.15
-
-    JSON files are loaded with json.load.
-    """
+    """Load a small JSON/YAML config without external dependencies."""
     path = Path(path)
     text = path.read_text(encoding="utf-8")
     if path.suffix.lower() == ".json":
@@ -511,10 +586,7 @@ def compute_roi(comparison: Dict[str, Any], roi: Dict[str, Any] | None) -> Dict[
 
 
 def anonymize_demands_csv(src: str | Path, dst: str | Path, mapping_out: str | Path | None = None) -> Dict[str, int]:
-    """Anonymize src_slot/dst_slot values in a demands CSV.
-
-    Works for numeric or string endpoint IDs. Output always uses integer slot IDs.
-    """
+    """Anonymize src_slot/dst_slot values in a demands CSV."""
     mapping: Dict[str, int] = {}
 
     def get_id(x: str) -> int:

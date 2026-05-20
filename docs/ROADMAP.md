@@ -3,9 +3,9 @@
 ## v0.1 — Sellable MVP
 
 - CSV demand import.
-- STRICT1 validation.
+- STRICT1 validation with accumulated diagnostics.
 - Baseline and greedy schedule generation.
-- Lower-bound gap and utilization metrics.
+- Lower-bound gap and utilization metrics with degree and capacity lower bounds.
 - Markdown/HTML/JSON report.
 - CI gate recipe.
 
