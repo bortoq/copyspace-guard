@@ -104,6 +104,11 @@ Optional:
 --notes "free text"
 --cost-per-tick 0.02
 --model STRICT1  # or READ1_WRITE1
+--bounds-subset-limit 20
+--max-errors 100
+--max-demands 100000
+--max-slots 10000
+--max-output-ticks 1000000
 ```
 
 ### Validate a schedule
@@ -116,6 +121,12 @@ copyspace-guard validate artifacts/run/instance.json artifacts/run/schedule_gree
 
 ```bash
 copyspace-guard report artifacts/run/summary.json --outdir artifacts/report
+```
+
+### Validate generated artifact contracts
+
+```bash
+copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
 ```
 
 
@@ -282,10 +293,11 @@ copyspace-guard anonymize \
   --kind schedule \
   --csv raw_schedule.csv \
   --out anonymized_schedule.csv \
+  --mapping-in slot_mapping.json \
   --mapping schedule_slot_mapping.json
 ```
 
-Do not share `mapping.json` unless you intend to reveal the original endpoint names.
+Use `--mapping-in` when anonymizing demands and schedules that must share the same slot-ID mapping. Do not share `mapping.json` unless you intend to reveal the original endpoint names.
 
 ## Sales-oriented demos
 

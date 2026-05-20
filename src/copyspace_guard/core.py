@@ -14,7 +14,8 @@ from .io import (
     write_schedule_csv,
 )
 from .roi import compare_reports, compute_roi, roi_cost_per_tick
-from .solvers import iter_baseline, iter_greedy, solve_baseline, solve_greedy
+from .schema import validate_artifact_contract, validate_instance_contract, validate_report_contract, validate_schedule_contract, validate_summary_contract
+from .solvers import DEFAULT_EXACT_CHUNK_LIMIT, exact_optimal_ticks, iter_baseline, iter_greedy, solve_baseline, solve_greedy
 from .types import Chunk, Demand, Instance, MODEL, MODELS, READ1_WRITE1, STRICT1, Report, Schedule
 from .validate import fail_report, gate_report, validate_schedule, validate_schedule_csv, validate_ticks_iter
 
@@ -42,6 +43,8 @@ __all__ = [
     "lower_bound_ticks",
     "iter_baseline",
     "iter_greedy",
+    "DEFAULT_EXACT_CHUNK_LIMIT",
+    "exact_optimal_ticks",
     "solve_baseline",
     "solve_greedy",
     "fail_report",
@@ -52,6 +55,11 @@ __all__ = [
     "compare_reports",
     "compute_roi",
     "roi_cost_per_tick",
+    "validate_artifact_contract",
+    "validate_instance_contract",
+    "validate_schedule_contract",
+    "validate_report_contract",
+    "validate_summary_contract",
     "anonymize_demands_csv",
     "anonymize_schedule_csv",
 ]

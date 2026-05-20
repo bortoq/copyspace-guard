@@ -15,3 +15,12 @@ Highlights:
 - Schedule and demand anonymization.
 - JSON schemas for v0 instance, schedule and summary artifacts.
 - Unit and CLI tests plus GitHub Actions CI.
+
+Hardening updates:
+
+- Runtime artifact contract validation command.
+- Validation error caps with `total_errors` and truncation metadata.
+- Analyze guardrails for slots, demands and output ticks.
+- Reusable anonymization mapping input.
+- Small-instance exact solver regression oracle.
+- Wheel-install and Docker smoke checks in CI.

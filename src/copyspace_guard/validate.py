@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Tuple
 
+from .bounds import DEFAULT_EXHAUSTIVE_SUBSET_LIMIT
 from .bounds import lower_bound_components
 from .io import demand_map, iter_schedule_csv_ticks, validate_instance
 from .types import Chunk, Instance, MODEL, READ1_WRITE1, Report, Schedule
@@ -10,13 +11,21 @@ from .types import Chunk, Instance, MODEL, READ1_WRITE1, Report, Schedule
 def fail_report(kind: str, msg: str, **ctx: Any) -> Report:
     err = {"kind": kind, "msg": msg}
     err.update(ctx)
-    return Report(status="FAIL", version=0, model=MODEL, errors=[err])
+    return Report(status="FAIL", version=0, model=MODEL, errors=[err], total_errors=1)
 
 
-def _final_report(inst: Instance, ticks_total: int, bits_total: int, errors: List[Dict[str, Any]]) -> Report:
+def _final_report(
+    inst: Instance,
+    ticks_total: int,
+    bits_total: int,
+    errors: List[Dict[str, Any]],
+    *,
+    total_errors: int,
+    bounds_subset_limit: int,
+) -> Report:
     try:
         slots, bw, _ = validate_instance(inst)
-        lbs = lower_bound_components(inst)
+        lbs = lower_bound_components(inst, exhaustive_subset_limit=bounds_subset_limit)
     except Exception as e:
         return fail_report("INSTANCE", str(e))
     bits_per_tick = bits_total / ticks_total if ticks_total > 0 else 0.0
@@ -25,10 +34,10 @@ def _final_report(inst: Instance, ticks_total: int, bits_total: int, errors: Lis
     expected_bits_per_tick = expected_chunks_per_tick * bw
     utilization = bits_per_tick / expected_bits_per_tick if expected_bits_per_tick else 0.0
     lb = int(lbs["lower_bound_ticks"])
-    gap = ticks_total - lb if not errors else 0
-    gap_ratio = gap / lb if lb > 0 and not errors else 0.0
+    gap = ticks_total - lb if total_errors == 0 else 0
+    gap_ratio = gap / lb if lb > 0 and total_errors == 0 else 0.0
     return Report(
-        status="FAIL" if errors else "PASS",
+        status="FAIL" if total_errors else "PASS",
         version=0,
         model=model,
         errors=errors,
@@ -46,10 +55,19 @@ def _final_report(inst: Instance, ticks_total: int, bits_total: int, errors: Lis
         gap_to_lower_bound=gap_ratio,
         lower_bound_witness=dict(lbs.get("lower_bound_witness", {})),
         bounds_complete=bool(lbs.get("bounds_complete", True)),
+        bounds_exhaustive_subset_limit=lbs.get("exhaustive_subset_limit"),
+        total_errors=total_errors,
+        errors_truncated=total_errors > len(errors),
     )
 
 
-def validate_ticks_iter(inst: Instance, ticks: Iterable[List[Chunk]]) -> Report:
+def validate_ticks_iter(
+    inst: Instance,
+    ticks: Iterable[List[Chunk]],
+    *,
+    max_errors: int | None = None,
+    bounds_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+) -> Report:
     try:
         slots, bw, _demands = validate_instance(inst)
     except Exception as e:
@@ -57,11 +75,16 @@ def validate_ticks_iter(inst: Instance, ticks: Iterable[List[Chunk]]) -> Report:
     model = str(inst.get("model", MODEL))
 
     errors: List[Dict[str, Any]] = []
+    total_errors = 0
     scheduled: Dict[Tuple[int, int], int] = {}
     bits_total = 0
     ticks_total = 0
 
     def add_error(kind: str, msg: str, **ctx: Any) -> None:
+        nonlocal total_errors
+        total_errors += 1
+        if max_errors is not None and len(errors) >= max_errors:
+            return
         err = {"kind": kind, "msg": msg}
         err.update(ctx)
         errors.append(err)
@@ -148,10 +171,23 @@ def validate_ticks_iter(inst: Instance, ticks: Iterable[List[Chunk]]) -> Report:
                 scheduled_bits=sbits,
             )
 
-    return _final_report(inst, ticks_total, bits_total, errors)
+    return _final_report(
+        inst,
+        ticks_total,
+        bits_total,
+        errors,
+        total_errors=total_errors,
+        bounds_subset_limit=bounds_subset_limit,
+    )
 
 
-def validate_schedule(inst: Instance, sched: Schedule) -> Report:
+def validate_schedule(
+    inst: Instance,
+    sched: Schedule,
+    *,
+    max_errors: int | None = None,
+    bounds_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+) -> Report:
     if not isinstance(sched, dict):
         return fail_report("STRUCT", "schedule must be an object")
     if sched.get("version") != 0:
@@ -162,11 +198,23 @@ def validate_schedule(inst: Instance, sched: Schedule) -> Report:
     ticks = sched.get("ticks")
     if not isinstance(ticks, list):
         return fail_report("STRUCT", "schedule.ticks must be a list")
-    return validate_ticks_iter(inst, ticks)
+    return validate_ticks_iter(inst, ticks, max_errors=max_errors, bounds_subset_limit=bounds_subset_limit)
 
 
-def validate_schedule_csv(inst: Instance, path: str, *, fill_empty_ticks: bool = True) -> Report:
-    return validate_ticks_iter(inst, iter_schedule_csv_ticks(path, fill_empty_ticks=fill_empty_ticks))
+def validate_schedule_csv(
+    inst: Instance,
+    path: str,
+    *,
+    fill_empty_ticks: bool = True,
+    max_errors: int | None = None,
+    bounds_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+) -> Report:
+    return validate_ticks_iter(
+        inst,
+        iter_schedule_csv_ticks(path, fill_empty_ticks=fill_empty_ticks),
+        max_errors=max_errors,
+        bounds_subset_limit=bounds_subset_limit,
+    )
 
 
 def gate_report(

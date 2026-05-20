@@ -34,6 +34,9 @@ class Report:
     gap_to_lower_bound: float = 0.0
     lower_bound_witness: Dict[str, Any] = field(default_factory=dict)
     bounds_complete: bool = True
+    bounds_exhaustive_subset_limit: int | None = None
+    total_errors: int = 0
+    errors_truncated: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

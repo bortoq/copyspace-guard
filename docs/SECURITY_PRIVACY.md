@@ -21,6 +21,13 @@ bucket-prod-x -> 2
 
 The report remains useful as long as relationships and volumes are preserved.
 
+When anonymizing both demand and schedule CSVs, reuse the same mapping:
+
+```bash
+copyspace-guard anonymize --kind demands --csv raw_demands.csv --out demands_anon.csv --mapping mapping.json
+copyspace-guard anonymize --kind schedule --csv raw_schedule.csv --out schedule_anon.csv --mapping-in mapping.json --mapping mapping.json
+```
+
 ## On-prem option
 
 The CLI runs locally with no runtime Python dependencies and no network calls. For sensitive environments, run it inside the customer's own workstation, CI runner or cluster login node.

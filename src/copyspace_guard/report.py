@@ -28,6 +28,7 @@ def _labels(summary: Dict[str, Any]) -> Tuple[str, str, Report, Report]:
 def metric_table(current: Report, candidate: Report, comparison: Dict[str, Any], current_label: str = "current", candidate_label: str = "candidate") -> str:
     rows = [
         ("Validation status", current.status, candidate.status),
+        ("Validation errors", str(current.total_errors), str(candidate.total_errors)),
         ("Ticks total", str(current.ticks_total), str(candidate.ticks_total)),
         ("Degree lower bound", str(current.degree_lower_bound), str(candidate.degree_lower_bound)),
         ("Capacity lower bound", str(current.capacity_lower_bound), str(candidate.capacity_lower_bound)),

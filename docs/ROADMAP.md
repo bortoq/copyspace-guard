@@ -11,11 +11,13 @@
 - Markdown/HTML/JSON report bundle.
 - Demand and schedule anonymization.
 - JSON schemas for v0 artifacts.
+- Runtime artifact contract validation.
+- Basic guardrails for large CI runs.
 
 ## v0.2 — Pilot hardening
 
 - Cleaner grouped diagnostics in HTML reports.
-- `--max-errors` and `total_errors` reporting.
+- More detailed grouped diagnostics in HTML reports.
 - More sales/regression examples from realistic traces.
 - Build/wheel and Docker release artifacts.
 - Case-study template and first public anonymized case study.

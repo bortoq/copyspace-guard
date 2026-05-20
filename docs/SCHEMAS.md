@@ -9,3 +9,9 @@ Schemas currently included:
 - `schemas/summary_v0.schema.json`
 
 The schemas are intentionally permissive around future extension fields (`additionalProperties: true` at the top level) while validating the core v0 structure. The summary schema validates the core report, comparison, ROI and artifact fields that downstream CI jobs are expected to consume.
+
+The CLI also includes a lightweight runtime contract validator:
+
+```bash
+copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
+```

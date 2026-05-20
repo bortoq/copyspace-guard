@@ -14,6 +14,24 @@ Without `--summary-only`, Copy-Space Guard materializes and writes schedule JSON
 
 STRICT1 subset-density bounds are exhaustively enumerated up to the configured slot limit. For larger slot counts, `bounds_complete` is false and reports include a warning.
 
+Use `--bounds-subset-limit N` to tune the exhaustive subset-density limit.
+
+## Guardrails
+
+For production or CI use, set explicit guardrails:
+
+```bash
+copyspace-guard analyze \
+  --csv demands.csv \
+  --bw 1048576 \
+  --summary-only \
+  --max-demands 100000 \
+  --max-slots 10000 \
+  --max-output-ticks 1000000 \
+  --max-errors 100 \
+  --outdir artifacts/run
+```
+
 ## Benchmark
 
 Run a synthetic ring benchmark:

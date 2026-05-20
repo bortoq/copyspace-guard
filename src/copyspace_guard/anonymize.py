@@ -4,11 +4,25 @@ import csv
 from pathlib import Path
 from typing import Dict
 
-from .io import dump_json
+from .io import dump_json, load_json
 
 
-def anonymize_demands_csv(src: str | Path, dst: str | Path, mapping_out: str | Path | None = None) -> Dict[str, int]:
-    mapping: Dict[str, int] = {}
+def _load_mapping(mapping_in: str | Path | None) -> Dict[str, int]:
+    if not mapping_in:
+        return {}
+    data = load_json(mapping_in)
+    if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, int) and v >= 0 for k, v in data.items()):
+        raise ValueError("mapping input must be a JSON object of string keys to non-negative integer IDs")
+    return dict(data)
+
+
+def anonymize_demands_csv(
+    src: str | Path,
+    dst: str | Path,
+    mapping_out: str | Path | None = None,
+    mapping_in: str | Path | None = None,
+) -> Dict[str, int]:
+    mapping: Dict[str, int] = _load_mapping(mapping_in)
 
     def get_id(x: str) -> int:
         x = str(x)
@@ -31,8 +45,13 @@ def anonymize_demands_csv(src: str | Path, dst: str | Path, mapping_out: str | P
     return mapping
 
 
-def anonymize_schedule_csv(src: str | Path, dst: str | Path, mapping_out: str | Path | None = None) -> Dict[str, int]:
-    mapping: Dict[str, int] = {}
+def anonymize_schedule_csv(
+    src: str | Path,
+    dst: str | Path,
+    mapping_out: str | Path | None = None,
+    mapping_in: str | Path | None = None,
+) -> Dict[str, int]:
+    mapping: Dict[str, int] = _load_mapping(mapping_in)
 
     def get_id(x: str) -> int:
         x = str(x)

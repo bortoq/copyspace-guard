@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -8,13 +9,19 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from copyspace_guard.core import (  # noqa: E402
     compute_roi,
+    exact_optimal_ticks,
     gate_report,
     instance_from_csv,
+    validate_artifact_contract,
     lower_bound_components,
     schedule_from_csv,
     solve_greedy,
     validate_schedule,
+    validate_summary_contract,
 )
+from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
+from copyspace_guard.io import dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
+from copyspace_guard.schema import validate_report_contract, validate_schedule_contract  # noqa: E402
 
 
 class CoreTests(unittest.TestCase):
@@ -113,6 +120,7 @@ class ModelExtensionTests(unittest.TestCase):
         rep = validate_schedule(inst, sched)
         self.assertEqual(rep.status, "PASS", rep.errors)
         self.assertEqual(rep.ticks_total, 1)
+        self.assertEqual(rep.model, "READ1_WRITE1")
 
     def test_bounds_incomplete_for_large_strict1(self):
         inst = {
@@ -125,10 +133,140 @@ class ModelExtensionTests(unittest.TestCase):
         lbs = lower_bound_components(inst)
         self.assertFalse(lbs["bounds_complete"])
 
+    def test_exact_optimal_ticks_small_oracle(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 3,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [
+                {"src_slot": 0, "dst_slot": 1, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 2, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 2, "bits_total": 1},
+            ],
+        }
+        self.assertEqual(exact_optimal_ticks(inst), 3)
+
+    def test_validator_truncates_stored_errors(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 3,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        sched = {"version": 0, "model": "STRICT1", "ticks": [[
+            {"src_slot": 0, "dst_slot": 1, "len_bits": 2},
+            {"src_slot": 0, "dst_slot": 2, "len_bits": 2},
+        ]]}
+        rep = validate_schedule(inst, sched, max_errors=1)
+        self.assertEqual(rep.status, "FAIL")
+        self.assertGreater(rep.total_errors, 1)
+        self.assertEqual(len(rep.errors), 1)
+        self.assertTrue(rep.errors_truncated)
+
 class SchemaFilesTests(unittest.TestCase):
     def test_schema_files_are_valid_json(self):
-        import json
         for name in ["instance_v0.schema.json", "schedule_v0.schema.json", "summary_v0.schema.json"]:
             data = json.loads((ROOT / "schemas" / name).read_text(encoding="utf-8"))
             self.assertIn("$schema", data)
             self.assertIn("title", data)
+
+
+class IoAndContractTests(unittest.TestCase):
+    def test_json_config_and_csv_helpers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            json_path = root / "obj.json"
+            dump_json(json_path, {"b": 2, "a": 1})
+            self.assertEqual(load_json(json_path), {"a": 1, "b": 2})
+
+            cfg = root / "config.yml"
+            cfg.write_text(
+                "roi:\n"
+                "  tick_seconds: 1\n"
+                "  enabled: true\n"
+                "  note: 'pilot'\n"
+                "  nothing: null\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(load_config(cfg)["roi"]["note"], "pilot")
+            self.assertIsNone(load_config(cfg)["roi"]["nothing"])
+
+            no_header = root / "demands.csv"
+            no_header.write_text("0,1,5\n\n1,2,7\n", encoding="utf-8")
+            self.assertEqual(read_demands_csv(no_header), [(0, 1, 5), (1, 2, 7)])
+
+            sched = {"version": 0, "model": "STRICT1", "ticks": [[{"src_slot": 0, "dst_slot": 1, "len_bits": 5}], [], [{"src_slot": 1, "dst_slot": 2, "len_bits": 7}]]}
+            sched_path = root / "schedule.csv"
+            write_schedule_csv(sched_path, sched)
+            self.assertEqual(schedule_from_csv(sched_path), sched)
+            self.assertEqual(len(list(iter_schedule_csv_ticks(sched_path, fill_empty_ticks=False))), 2)
+
+    def test_contract_validators_accept_and_reject_artifacts(self):
+        inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
+        sched = solve_greedy(inst)
+        rep = validate_schedule(inst, sched)
+        validate_artifact_contract("instance", inst)
+        validate_schedule_contract(sched)
+        validate_report_contract(rep.to_dict())
+
+        summary = {
+            "instance": inst,
+            "current_label": "baseline",
+            "candidate_label": "greedy",
+            "reports": {"baseline": rep.to_dict(), "greedy": rep.to_dict()},
+            "comparison": {
+                "comparable": True,
+                "comparison_note": "ok",
+                "saved_ticks": 0,
+                "saved_ticks_pct": 0.0,
+                "gap_reduction_ticks": 0,
+                "utilization_delta": 0.0,
+                "estimated_savings": None,
+                "cost_per_tick": None,
+            },
+            "roi": {},
+            "artifacts": {
+                "instance": "instance.json",
+                "schedule_current": "schedule_baseline.json",
+                "schedule_current_csv": "schedule_baseline.csv",
+                "schedule_greedy": "schedule_greedy.json",
+                "schedule_greedy_csv": "schedule_greedy.csv",
+                "report_current": "report_baseline.json",
+                "report_greedy": "report_greedy.json",
+                "report_markdown": "report.md",
+                "report_html": "report.html",
+            },
+        }
+        validate_summary_contract(summary)
+        with self.assertRaisesRegex(ValueError, "candidate_label"):
+            broken = dict(summary)
+            broken["candidate_label"] = "missing"
+            validate_summary_contract(broken)
+        with self.assertRaisesRegex(ValueError, "unsupported"):
+            validate_artifact_contract("bogus", {})
+
+
+class AnonymizeTests(unittest.TestCase):
+    def test_anonymize_helpers_reuse_and_validate_mapping(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            demands = root / "demands.csv"
+            demands.write_text("src_slot,dst_slot,bits_total,tag\nrack-a,rack-b,10,x\nrack-b,rack-c,20,y\n", encoding="utf-8")
+            mapping = root / "mapping.json"
+            demand_out = root / "anon_demands.csv"
+            out_map = anonymize_demands_csv(demands, demand_out, mapping)
+            self.assertEqual(out_map, {"rack-a": 0, "rack-b": 1, "rack-c": 2})
+
+            schedule = root / "schedule.csv"
+            schedule.write_text("tick,src_slot,dst_slot,len_bits\n0,rack-c,rack-a,10\n", encoding="utf-8")
+            sched_out = root / "anon_schedule.csv"
+            reused = anonymize_schedule_csv(schedule, sched_out, mapping, mapping_in=mapping)
+            self.assertEqual(reused, out_map)
+            self.assertIn("2,0", sched_out.read_text(encoding="utf-8"))
+
+            bad_mapping = root / "bad_mapping.json"
+            bad_mapping.write_text('{"rack-a": -1}', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "mapping input"):
+                anonymize_demands_csv(demands, root / "bad.csv", mapping_in=bad_mapping)

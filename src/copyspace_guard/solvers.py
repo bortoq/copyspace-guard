@@ -5,6 +5,8 @@ from typing import Dict, Iterable, Iterator, List, Tuple
 from .io import validate_instance
 from .types import Chunk, Demand, Instance, READ1_WRITE1, Schedule
 
+DEFAULT_EXACT_CHUNK_LIMIT = 18
+
 
 def _aggregate_demands(demands: Iterable[Demand]) -> List[Demand]:
     merged: Dict[Tuple[int, int], int] = {}
@@ -127,3 +129,58 @@ def solve_baseline(inst: Instance) -> Schedule:
 
 def solve_greedy(inst: Instance) -> Schedule:
     return materialize(iter_greedy(inst), str(inst.get("model", "STRICT1")))
+
+
+def exact_optimal_ticks(inst: Instance, *, max_chunks: int = DEFAULT_EXACT_CHUNK_LIMIT) -> int:
+    """Return exact optimum for small expanded chunk instances.
+
+    This is intended as a regression oracle, not as the production scheduler.
+    Each demand is expanded into bandwidth-sized unit chunks, then a depth-first
+    search packs compatible chunks into the fewest ticks.
+    """
+    _slots, bw, demands = validate_instance(inst)
+    model = str(inst.get("model", "STRICT1"))
+    chunks: list[tuple[int, int]] = []
+    for d in _aggregate_demands(demands):
+        count = (int(d["bits_total"]) + bw - 1) // bw
+        chunks.extend([(int(d["src_slot"]), int(d["dst_slot"]))] * count)
+    if len(chunks) > max_chunks:
+        raise ValueError(f"exact solver supports at most {max_chunks} chunks, got {len(chunks)}")
+    if not chunks:
+        return 0
+
+    chunk_count = len(chunks)
+    all_mask = (1 << chunk_count) - 1
+    compatible_masks: list[int] = []
+    for mask in range(1, 1 << chunk_count):
+        used: set[int] = set()
+        used_src: set[int] = set()
+        used_dst: set[int] = set()
+        ok = True
+        for i, (s, t) in enumerate(chunks):
+            if not mask & (1 << i):
+                continue
+            if not _can_use(model, used, used_src, used_dst, s, t):
+                ok = False
+                break
+            _mark_use(model, used, used_src, used_dst, s, t)
+        if ok:
+            compatible_masks.append(mask)
+
+    memo: dict[int, int] = {0: 0}
+
+    def search(remaining: int) -> int:
+        if remaining in memo:
+            return memo[remaining]
+        first = remaining & -remaining
+        best = chunk_count
+        for mask in compatible_masks:
+            if not mask & first:
+                continue
+            if mask & remaining != mask:
+                continue
+            best = min(best, 1 + search(remaining ^ mask))
+        memo[remaining] = best
+        return best
+
+    return search(all_mask)

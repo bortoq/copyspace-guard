@@ -29,6 +29,8 @@ jobs:
             --report greedy \
             --max-gap 0.15 \
             --min-utilization 0.85
+      - name: Validate artifact contract
+        run: copyspace-guard validate-artifact --kind summary artifacts/copyspace/summary.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

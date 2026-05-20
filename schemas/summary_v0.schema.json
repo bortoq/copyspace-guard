@@ -8,6 +8,15 @@
     "instance": {"type": "object"},
     "current_label": {"type": "string"},
     "candidate_label": {"type": "string"},
+    "analysis_options": {
+      "type": "object",
+      "properties": {
+        "bounds_subset_limit": {"type": "integer", "minimum": 0},
+        "max_errors": {"type": ["integer", "null"], "minimum": 0},
+        "summary_only": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
     "reports": {
       "type": "object",
       "required": ["greedy"],
@@ -66,7 +75,7 @@
   "$defs": {
     "report": {
       "type": "object",
-      "required": ["status", "version", "model", "errors", "ticks_total", "bits_total", "bits_per_tick", "expected_bits_per_tick", "utilization", "degree_lower_bound", "capacity_lower_bound", "density_lower_bound", "lower_bound_ticks", "gap_ticks", "gap_to_lower_bound", "bounds_complete"],
+      "required": ["status", "version", "model", "errors", "ticks_total", "bits_total", "bits_per_tick", "expected_bits_per_tick", "utilization", "degree_lower_bound", "capacity_lower_bound", "density_lower_bound", "lower_bound_ticks", "gap_ticks", "gap_to_lower_bound", "bounds_complete", "total_errors", "errors_truncated"],
       "properties": {
         "status": {"enum": ["PASS", "FAIL"]},
         "version": {"const": 0},
@@ -85,7 +94,10 @@
         "gap_ticks": {"type": "integer"},
         "gap_to_lower_bound": {"type": "number"},
         "lower_bound_witness": {"type": "object"},
-        "bounds_complete": {"type": "boolean"}
+        "bounds_complete": {"type": "boolean"},
+        "bounds_exhaustive_subset_limit": {"type": ["integer", "null"], "minimum": 0},
+        "total_errors": {"type": "integer", "minimum": 0},
+        "errors_truncated": {"type": "boolean"}
       },
       "additionalProperties": true
     }

@@ -48,11 +48,26 @@ class CliTests(unittest.TestCase):
             )
             data = json.loads((out / "summary.json").read_text())
             self.assertEqual(data["current_label"], "customer_current")
+            self.assertNotIn("baseline", data["reports"])
+            self.assertIn("current", data["reports"])
             self.assertTrue((out / "schedule_customer_current.json").exists())
             self.assertTrue((out / "schedule_customer_current.csv").exists())
             self.assertTrue((out / "report_customer_current.json").exists())
             self.assertEqual(data["artifacts"]["schedule_current"], "schedule_customer_current.json")
             self.assertEqual(data["artifacts"]["report_current"], "report_customer_current.json")
+
+    def test_validate_artifact_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--summary-only", "--outdir", str(out))
+            rc = run_cli("validate-artifact", "--kind", "summary", str(out / "summary.json"))
+            self.assertEqual(rc.returncode, 0)
+
+    def test_guardrails_fail_cleanly(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc = run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--max-slots", "2", "--outdir", str(Path(td) / "out"), check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("exceeds --max-slots", rc.stderr)
 
     def test_invalid_current_is_not_comparable(self):
         with tempfile.TemporaryDirectory() as td:
@@ -78,6 +93,17 @@ class CliTests(unittest.TestCase):
             run_cli("anonymize", "--kind", "schedule", "--csv", "examples/demo_bad_current_schedule.csv", "--out", str(out), "--mapping", str(mapping))
             self.assertTrue(out.exists())
             self.assertTrue(mapping.exists())
+
+    def test_anonymize_reuses_mapping(self):
+        with tempfile.TemporaryDirectory() as td:
+            demand_out = Path(td) / "demands.csv"
+            sched_out = Path(td) / "sched.csv"
+            mapping = Path(td) / "mapping.json"
+            run_cli("anonymize", "--kind", "demands", "--csv", "examples/demo_bad_current_demands.csv", "--out", str(demand_out), "--mapping", str(mapping))
+            run_cli("anonymize", "--kind", "schedule", "--csv", "examples/demo_bad_current_schedule.csv", "--out", str(sched_out), "--mapping-in", str(mapping), "--mapping", str(mapping))
+            data = json.loads(mapping.read_text())
+            self.assertEqual(data["0"], 0)
+            self.assertEqual(data["3"], 3)
 
 
 if __name__ == "__main__":
