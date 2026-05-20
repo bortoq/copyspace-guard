@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Release checks
+        run: make release-check
+
+      - name: Docker smoke
+        run: |
+          docker build -t copyspace-guard:${{ github.ref_name }} .
+          docker run --rm -v "$PWD:/work" copyspace-guard:${{ github.ref_name }} analyze \
+            --csv examples/ring15.csv \
+            --bw 256 \
+            --summary-only \
+            --outdir artifacts/release-docker-smoke
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            dist/release_manifest.csv
+            dist/sbom.cdx.json
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            dist/release_manifest.csv
+            dist/sbom.cdx.json

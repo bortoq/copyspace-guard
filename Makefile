@@ -1,4 +1,4 @@
-.PHONY: demo test pilot-check docker-build build bench
+.PHONY: demo test pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench
 
 demo:
 	copyspace-guard analyze --csv examples/ring15.csv --bw 256 --roi examples/roi.yml --outdir artifacts/demo
@@ -25,6 +25,24 @@ build:
 	python -m pip install -e ".[dev]"
 	python -m pip install --upgrade "setuptools>=77" wheel
 	python -m build --no-isolation
+
+wheel-smoke:
+	rm -rf /tmp/copyspace-guard-wheel-smoke
+	python -m venv /tmp/copyspace-guard-wheel-smoke
+	/tmp/copyspace-guard-wheel-smoke/bin/python -m pip install --upgrade pip
+	/tmp/copyspace-guard-wheel-smoke/bin/python -m pip install dist/*.whl
+	/tmp/copyspace-guard-wheel-smoke/bin/copyspace-guard --version
+	/tmp/copyspace-guard-wheel-smoke/bin/copyspace-guard analyze --csv examples/ring15.csv --bw 256 --summary-only --outdir /tmp/copyspace-guard-wheel-smoke/out
+
+release-artifacts:
+	python -m twine check dist/*
+	python tools/release_artifacts.py --dist dist --out dist
+
+release-check: clean test pilot-check build wheel-smoke release-artifacts
+
+clean:
+	rm -rf build dist src/*.egg-info src/copyspace_guard.egg-info .mypy_cache .ruff_cache
+	find src tests -type d -name __pycache__ -prune -exec rm -rf {} +
 
 docker-build:
 	docker build -t copyspace-guard .

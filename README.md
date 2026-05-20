@@ -339,6 +339,7 @@ Large workloads can use `--summary-only` to avoid writing full schedule JSON/CSV
 - JSON schemas: `docs/SCHEMAS.md`
 - Performance notes: `docs/PERFORMANCE.md`
 - Pilot readiness: `docs/PILOT_READINESS.md`
+- Release process: `docs/RELEASE_PROCESS.md`
 - Threat model: `docs/THREAT_MODEL.md`
 - Data handling: `docs/DATA_HANDLING.md`
 - Changelog: `CHANGELOG.md`

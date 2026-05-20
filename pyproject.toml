@@ -30,6 +30,7 @@ dev = [
   "mypy>=1.10",
   "ruff>=0.5",
   "setuptools>=77",
+  "twine>=5.1",
   "wheel>=0.43",
 ]
 

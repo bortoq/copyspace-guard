@@ -29,3 +29,5 @@ Hardening updates:
 - Report artifact schema and package typing marker.
 - Partner-facing material moved under `doc/partners/`.
 - `copyspace-guard doctor --root .` and `make pilot-check` define the repeatable pilot-readiness smoke path.
+- `make release-check` now builds and verifies wheel/sdist, runs wheel-install smoke, checks package metadata, and generates checksums plus a CycloneDX-style SBOM.
+- Tag pushes now run a GitHub release workflow that uploads wheel, sdist, checksums, release manifest and SBOM.
