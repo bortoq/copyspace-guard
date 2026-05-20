@@ -1,0 +1,4 @@
+gates:
+  report: greedy
+  max_gap_to_lower_bound: 0.15
+  min_utilization: 0.85

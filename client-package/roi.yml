@@ -1,0 +1,9 @@
+roi:
+  tick_seconds: 1
+  gpu_count_blocked: 64
+  gpu_hour_cost_usd: 2.50
+  node_count_blocked: 0
+  node_hour_cost_usd: 0
+  runs_per_day: 12
+  days_per_month: 30
+  months_per_year: 12
