@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -14,6 +15,12 @@ def pct(x: float) -> str:
 
 def money(x: float) -> str:
     return f"${x:,.2f}"
+
+
+def _inline_html(text: str) -> str:
+    escaped = html.escape(text)
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
 
 
 def _labels(summary: Dict[str, Any]) -> Tuple[str, str, Report, Report]:
@@ -82,6 +89,32 @@ At least one schedule report was produced with partial lower-bound enumeration. 
 """
 
 
+def diagnostics_section(current: Report, candidate: Report, current_label: str, candidate_label: str, *, max_examples: int = 5) -> str:
+    reports = [(current_label, current), (candidate_label, candidate)]
+    failing = [(label, rep) for label, rep in reports if rep.total_errors > 0]
+    if not failing:
+        return ""
+    out = "## Validation diagnostics\n\n"
+    for label, rep in failing:
+        counts: Dict[str, int] = {}
+        for err in rep.errors:
+            kind = str(err.get("kind", "UNKNOWN"))
+            counts[kind] = counts.get(kind, 0) + 1
+        groups = ", ".join(f"{kind}: {count}" for kind, count in sorted(counts.items())) or "stored errors: 0"
+        suffix = " Stored examples are truncated." if rep.errors_truncated else ""
+        out += f"### `{label}`\n\n"
+        out += f"- Total validation errors: **{rep.total_errors}**. Stored error groups: {groups}.{suffix}\n"
+        for err in rep.errors[:max_examples]:
+            kind = str(err.get("kind", "UNKNOWN"))
+            msg = str(err.get("msg", ""))
+            ctx = {k: v for k, v in err.items() if k not in {"kind", "msg"}}
+            ctx_text = ", ".join(f"{k}={v}" for k, v in sorted(ctx.items()))
+            detail = f" ({ctx_text})" if ctx_text else ""
+            out += f"- `{kind}`: {msg}{detail}\n"
+        out += "\n"
+    return out
+
+
 def render_markdown(summary: Dict[str, Any]) -> str:
     inst = summary["instance"]
     current_label, candidate_label, cur, cand = _labels(summary)
@@ -118,6 +151,8 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 {roi_section(summary)}
 
 {bounds_warning_section(cur, cand)}
+
+{diagnostics_section(cur, cand, current_label, candidate_label)}
 
 ## Commercial interpretation
 
@@ -173,6 +208,7 @@ def render_html(summary: Dict[str, Any]) -> str:
     lines = md.splitlines()
     body: List[str] = []
     in_ul = False
+    in_ol = False
     in_table = False
     table_rows: List[str] = []
 
@@ -181,6 +217,12 @@ def render_html(summary: Dict[str, Any]) -> str:
         if in_ul:
             body.append("</ul>")
             in_ul = False
+
+    def flush_ol() -> None:
+        nonlocal in_ol
+        if in_ol:
+            body.append("</ol>")
+            in_ol = False
 
     def flush_table() -> None:
         nonlocal in_table, table_rows
@@ -192,6 +234,7 @@ def render_html(summary: Dict[str, Any]) -> str:
     for line in lines:
         if line.startswith("| "):
             flush_ul()
+            flush_ol()
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
             if all(set(c) <= {"-", ":"} for c in cells):
                 continue
@@ -204,24 +247,38 @@ def render_html(summary: Dict[str, Any]) -> str:
         flush_table()
         if line.startswith("# "):
             flush_ul()
-            body.append(f"<h1>{html.escape(line[2:])}</h1>")
+            flush_ol()
+            body.append(f"<h1>{_inline_html(line[2:])}</h1>")
         elif line.startswith("## "):
             flush_ul()
-            body.append(f"<h2>{html.escape(line[3:])}</h2>")
+            flush_ol()
+            body.append(f"<h2>{_inline_html(line[3:])}</h2>")
+        elif line.startswith("### "):
+            flush_ul()
+            flush_ol()
+            body.append(f"<h3>{_inline_html(line[4:])}</h3>")
         elif line.startswith("- "):
+            flush_ol()
             if not in_ul:
                 body.append("<ul>")
                 in_ul = True
-            text = html.escape(line[2:]).replace("**", "")
-            body.append(f"<li>{text}</li>")
+            body.append(f"<li>{_inline_html(line[2:])}</li>")
+        elif re.match(r"^\d+\. ", line):
+            flush_ul()
+            if not in_ol:
+                body.append("<ol>")
+                in_ol = True
+            body.append(f"<li>{_inline_html(line.split('. ', 1)[1])}</li>")
         elif not line.strip():
             flush_ul()
+            flush_ol()
             body.append("")
         else:
             flush_ul()
-            text = html.escape(line).replace("**", "")
-            body.append(f"<p>{text}</p>")
+            flush_ol()
+            body.append(f"<p>{_inline_html(line)}</p>")
     flush_ul()
+    flush_ol()
     flush_table()
     return f"""<!doctype html>
 <html lang="en">

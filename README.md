@@ -7,7 +7,7 @@
 
 **Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Status: early pilot / v0.1.
 
-It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a strict resource model, compares a baseline schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
+It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a declared resource model, compares a baseline or customer schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
 
 This package is intentionally small and pilot-friendly:
 
@@ -111,6 +111,8 @@ Optional:
 --max-output-ticks 1000000
 ```
 
+`--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
+
 ### Validate a schedule
 
 ```bash
@@ -202,6 +204,13 @@ Not included yet:
 - cloud adapter importers;
 - address-level offset validation;
 - VCopySpace receipt ledger integration.
+
+Known operational caveats:
+
+- Customer schedule CSVs used in streaming mode must be sorted by non-decreasing `tick`.
+- Full artifact mode can produce large schedule JSON/CSV files; use `--summary-only` for large pilots and CI.
+- For large STRICT1 slot counts, subset-density lower bounds may be partial; check `bounds_complete` in reports.
+- The greedy schedule is deterministic and useful for comparison, but it is not a proof of global optimality.
 
 ## How this maps to the larger project set
 

@@ -17,7 +17,6 @@
 ## v0.2 — Pilot hardening
 
 - Cleaner grouped diagnostics in HTML reports.
-- More detailed grouped diagnostics in HTML reports.
 - More sales/regression examples from realistic traces.
 - Build/wheel and Docker release artifacts.
 - Case-study template and first public anonymized case study.

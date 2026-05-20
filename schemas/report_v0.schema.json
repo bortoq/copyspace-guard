@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bortoq/copyspace-guard/schemas/report_v0.schema.json",
+  "title": "Copy-Space Guard Report v0",
+  "type": "object",
+  "required": ["status", "version", "model", "errors", "ticks_total", "bits_total", "bits_per_tick", "expected_bits_per_tick", "utilization", "degree_lower_bound", "capacity_lower_bound", "density_lower_bound", "lower_bound_ticks", "gap_ticks", "gap_to_lower_bound", "bounds_complete", "total_errors", "errors_truncated"],
+  "properties": {
+    "status": {"enum": ["PASS", "FAIL"]},
+    "version": {"const": 0},
+    "model": {"enum": ["STRICT1", "READ1_WRITE1"]},
+    "errors": {"type": "array", "items": {"type": "object"}},
+    "ticks_total": {"type": "integer", "minimum": 0},
+    "bits_total": {"type": "integer", "minimum": 0},
+    "bits_per_tick": {"type": "number", "minimum": 0},
+    "expected_bits_per_tick": {"type": "integer", "minimum": 0},
+    "utilization": {"type": "number", "minimum": 0},
+    "degree_lower_bound": {"type": "integer", "minimum": 0},
+    "capacity_lower_bound": {"type": "integer", "minimum": 0},
+    "density_lower_bound": {"type": "integer", "minimum": 0},
+    "max_degree_chunks": {"type": "integer", "minimum": 0},
+    "lower_bound_ticks": {"type": "integer", "minimum": 0},
+    "gap_ticks": {"type": "integer"},
+    "gap_to_lower_bound": {"type": "number"},
+    "lower_bound_witness": {"type": "object"},
+    "bounds_complete": {"type": "boolean"},
+    "bounds_exhaustive_subset_limit": {"type": ["integer", "null"], "minimum": 0},
+    "total_errors": {"type": "integer", "minimum": 0},
+    "errors_truncated": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}

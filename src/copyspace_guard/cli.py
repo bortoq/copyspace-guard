@@ -249,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="copyspace-guard", description="Deterministic data-movement audit and CI gate")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    a = sub.add_parser("analyze", help="run baseline vs optimized analysis from demands CSV")
+    a = sub.add_parser("analyze", help="run current/baseline vs deterministic candidate analysis from demands CSV")
     a.add_argument("--csv", required=True, help="CSV with src_slot,dst_slot,bits_total")
     a.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
     a.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")

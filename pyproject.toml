@@ -26,7 +26,11 @@ classifiers = [
 dev = [
   "build>=1.2",
   "coverage>=7",
+  "jsonschema>=4.22",
+  "mypy>=1.10",
   "ruff>=0.5",
+  "setuptools>=77",
+  "wheel>=0.43",
 ]
 
 [project.scripts]
@@ -34,6 +38,9 @@ copyspace-guard = "copyspace_guard.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+copyspace_guard = ["py.typed"]
 
 [tool.ruff]
 line-length = 140

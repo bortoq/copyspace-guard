@@ -14,7 +14,7 @@ Without `--summary-only`, Copy-Space Guard materializes and writes schedule JSON
 
 STRICT1 subset-density bounds are exhaustively enumerated up to the configured slot limit. For larger slot counts, `bounds_complete` is false and reports include a warning.
 
-Use `--bounds-subset-limit N` to tune the exhaustive subset-density limit.
+Use `--bounds-subset-limit N` to tune the exhaustive subset-density limit. The CLI enforces a hard cap to prevent accidental exponential runs; values above the cap fail fast.
 
 ## Guardrails
 
@@ -34,7 +34,7 @@ copyspace-guard analyze \
 
 ## Benchmark
 
-Run a synthetic ring benchmark:
+Run synthetic benchmarks for both supported models before changing solver, validation or bounds code:
 
 ```bash
 copyspace-guard bench \
@@ -42,4 +42,21 @@ copyspace-guard bench \
   --bits-per-edge 1048576 \
   --bw 1048576 \
   --outdir artifacts/bench
+
+copyspace-guard bench \
+  --slots 64 \
+  --bits-per-edge 1048576 \
+  --bw 1048576 \
+  --model READ1_WRITE1 \
+  --outdir artifacts/bench-readwrite
 ```
+
+For scalability checks, also test sparse high-slot workloads, large demand counts, customer schedule CSVs with large tick gaps, and intentionally invalid schedules with `--max-errors`.
+
+## Known failure modes
+
+- Unsorted customer schedule CSVs fail streaming validation; sort by non-decreasing `tick`.
+- Full artifact mode can create very large schedule JSON/CSV files; use `--summary-only` for CI and large pilots.
+- STRICT1 lower-bound enumeration is partial when slot count exceeds the configured subset limit; inspect `bounds_complete`.
+- Very large tick gaps in customer schedules preserve elapsed empty ticks and can inflate `ticks_total`.
+- Anonymization mapping files may reveal original endpoint names and should be handled as sensitive data.

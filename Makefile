@@ -5,6 +5,7 @@ demo:
 
 test:
 	python -m ruff check --no-cache .
+	python -m mypy src
 	PYTHONPYCACHEPREFIX=/tmp/copyspace-guard-pycache python -m compileall -q src tests
 	COVERAGE_FILE=/tmp/copyspace-guard.coverage python -m coverage run -m unittest discover -s tests -v
 	COVERAGE_FILE=/tmp/copyspace-guard.coverage python -m coverage report --fail-under=80
@@ -16,6 +17,7 @@ bench:
 
 build:
 	python -m pip install -e ".[dev]"
+	python -m pip install --upgrade "setuptools>=77" wheel
 	python -m build --no-isolation
 
 docker-build:

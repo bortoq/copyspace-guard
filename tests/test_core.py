@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from copyspace_guard.core import (  # noqa: E402
+    MAX_EXHAUSTIVE_SUBSET_LIMIT,
     compute_roi,
     exact_optimal_ticks,
     gate_report,
@@ -21,6 +22,7 @@ from copyspace_guard.core import (  # noqa: E402
 )
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
 from copyspace_guard.io import dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
+from copyspace_guard.report import render_html, render_markdown, write_reports  # noqa: E402
 from copyspace_guard.schema import validate_report_contract, validate_schedule_contract  # noqa: E402
 
 
@@ -133,6 +135,17 @@ class ModelExtensionTests(unittest.TestCase):
         lbs = lower_bound_components(inst)
         self.assertFalse(lbs["bounds_complete"])
 
+    def test_bounds_limit_has_hard_cap(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 2,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        with self.assertRaisesRegex(ValueError, "hard cap"):
+            lower_bound_components(inst, exhaustive_subset_limit=MAX_EXHAUSTIVE_SUBSET_LIMIT + 1)
+
     def test_exact_optimal_ticks_small_oracle(self):
         inst = {
             "version": 0,
@@ -167,10 +180,57 @@ class ModelExtensionTests(unittest.TestCase):
 
 class SchemaFilesTests(unittest.TestCase):
     def test_schema_files_are_valid_json(self):
-        for name in ["instance_v0.schema.json", "schedule_v0.schema.json", "summary_v0.schema.json"]:
+        for name in ["instance_v0.schema.json", "report_v0.schema.json", "schedule_v0.schema.json", "summary_v0.schema.json"]:
             data = json.loads((ROOT / "schemas" / name).read_text(encoding="utf-8"))
             self.assertIn("$schema", data)
             self.assertIn("title", data)
+
+    def test_generated_artifacts_validate_against_json_schemas_when_available(self):
+        try:
+            from jsonschema import Draft202012Validator
+        except Exception:
+            self.skipTest("jsonschema is not installed")
+
+        inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
+        sched = solve_greedy(inst)
+        rep = validate_schedule(inst, sched)
+        summary = {
+            "instance": inst,
+            "current_label": "baseline",
+            "candidate_label": "greedy",
+            "reports": {"baseline": rep.to_dict(), "greedy": rep.to_dict()},
+            "comparison": {
+                "comparable": True,
+                "comparison_note": "OK",
+                "saved_ticks": 0,
+                "saved_ticks_pct": 0.0,
+                "gap_reduction_ticks": 0,
+                "utilization_delta": 0.0,
+                "estimated_savings": 0.0,
+                "cost_per_tick": 0.0,
+            },
+            "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}),
+            "artifacts": {
+                "instance": "instance.json",
+                "schedule_current": "schedule_baseline.json",
+                "schedule_current_csv": "schedule_baseline.csv",
+                "schedule_greedy": "schedule_greedy.json",
+                "schedule_greedy_csv": "schedule_greedy.csv",
+                "report_current": "report_baseline.json",
+                "report_greedy": "report_greedy.json",
+                "report_markdown": "report.md",
+                "report_html": "report.html",
+            },
+        }
+        cases = [
+            ("instance_v0.schema.json", inst),
+            ("report_v0.schema.json", rep.to_dict()),
+            ("schedule_v0.schema.json", sched),
+            ("summary_v0.schema.json", summary),
+        ]
+        for schema_name, obj in cases:
+            schema = json.loads((ROOT / "schemas" / schema_name).read_text(encoding="utf-8"))
+            Draft202012Validator(schema).validate(obj)
 
 
 class IoAndContractTests(unittest.TestCase):
@@ -196,6 +256,14 @@ class IoAndContractTests(unittest.TestCase):
             no_header = root / "demands.csv"
             no_header.write_text("0,1,5\n\n1,2,7\n", encoding="utf-8")
             self.assertEqual(read_demands_csv(no_header), [(0, 1, 5), (1, 2, 7)])
+
+            quoted = root / "quoted.csv"
+            quoted.write_text('src_slot,dst_slot,bits_total,note\n"0","1","5","contains src_slot text"\n', encoding="utf-8")
+            self.assertEqual(read_demands_csv(quoted), [(0, 1, 5)])
+
+            leading_blank = root / "leading_blank_schedule.csv"
+            leading_blank.write_text("\n\ntick,src_slot,dst_slot,len_bits\n0,0,1,5\n", encoding="utf-8")
+            self.assertEqual(list(iter_schedule_csv_ticks(leading_blank)), [[{"src_slot": 0, "dst_slot": 1, "len_bits": 5}]])
 
             sched = {"version": 0, "model": "STRICT1", "ticks": [[{"src_slot": 0, "dst_slot": 1, "len_bits": 5}], [], [{"src_slot": 1, "dst_slot": 2, "len_bits": 7}]]}
             sched_path = root / "schedule.csv"
@@ -270,3 +338,67 @@ class AnonymizeTests(unittest.TestCase):
             bad_mapping.write_text('{"rack-a": -1}', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "mapping input"):
                 anonymize_demands_csv(demands, root / "bad.csv", mapping_in=bad_mapping)
+
+
+class ReportRenderingTests(unittest.TestCase):
+    def test_markdown_report_includes_grouped_diagnostics(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 2,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        bad = {"version": 0, "model": "STRICT1", "ticks": [[{"src_slot": 0, "dst_slot": 1, "len_bits": 2}]]}
+        current = validate_schedule(inst, bad)
+        candidate = validate_schedule(inst, solve_greedy(inst))
+        summary = {
+            "instance": inst,
+            "current_label": "customer_current",
+            "candidate_label": "greedy",
+            "reports": {"customer_current": current.to_dict(), "greedy": candidate.to_dict()},
+            "comparison": {
+                "comparable": False,
+                "comparison_note": "validation failed",
+                "saved_ticks": 0,
+                "saved_ticks_pct": 0.0,
+                "gap_reduction_ticks": 0,
+                "utilization_delta": 0.0,
+                "estimated_savings": 0.0,
+                "cost_per_tick": 0.0,
+            },
+            "roi": {},
+            "artifacts": {},
+        }
+        md = render_markdown(summary)
+        self.assertIn("Validation diagnostics", md)
+        self.assertIn("BANDWIDTH", md)
+
+    def test_html_report_renders_inline_markup_and_files(self):
+        inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
+        rep = validate_schedule(inst, solve_greedy(inst))
+        summary = {
+            "instance": inst,
+            "current_label": "baseline",
+            "candidate_label": "greedy",
+            "reports": {"baseline": rep.to_dict(), "greedy": rep.to_dict()},
+            "comparison": {
+                "comparable": True,
+                "comparison_note": "OK",
+                "saved_ticks": 0,
+                "saved_ticks_pct": 0.0,
+                "gap_reduction_ticks": 0,
+                "utilization_delta": 0.0,
+                "estimated_savings": 0.0,
+                "cost_per_tick": 0.0,
+            },
+            "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}),
+            "artifacts": {},
+        }
+        html = render_html(summary)
+        self.assertIn("<code>baseline</code>", html)
+        self.assertIn("<ol>", html)
+        with tempfile.TemporaryDirectory() as td:
+            write_reports(td, summary)
+            self.assertTrue((Path(td) / "report.md").exists())
+            self.assertTrue((Path(td) / "report.html").exists())

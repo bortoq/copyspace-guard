@@ -7,6 +7,7 @@ from .io import demand_map, validate_instance
 from .types import Instance, READ1_WRITE1, STRICT1
 
 DEFAULT_EXHAUSTIVE_SUBSET_LIMIT = 20
+MAX_EXHAUSTIVE_SUBSET_LIMIT = 24
 
 
 def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, int]]]:
@@ -118,6 +119,10 @@ def _read1_write1_bounds(slots: int, edges: List[Tuple[int, int, int]]) -> Dict[
 
 def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT) -> Dict[str, Any]:
     """Return deterministic lower bounds for the instance model."""
+    if exhaustive_subset_limit < 0:
+        raise ValueError("exhaustive_subset_limit must be >= 0")
+    if exhaustive_subset_limit > MAX_EXHAUSTIVE_SUBSET_LIMIT:
+        raise ValueError(f"exhaustive_subset_limit {exhaustive_subset_limit} exceeds hard cap {MAX_EXHAUSTIVE_SUBSET_LIMIT}")
     slots, _bw, model, edges = _chunk_edges(inst)
     if model == READ1_WRITE1:
         out = _read1_write1_bounds(slots, edges)

@@ -4,12 +4,15 @@ Before tagging a release:
 
 1. Run `make test`.
 2. Run `python -m build --no-isolation`.
-3. Build Docker image.
-4. Run Docker smoke test.
-5. Regenerate demo report.
-6. Validate generated `summary.json` with `copyspace-guard validate-artifact --kind summary`.
-7. Review README metrics.
-8. Update `CHANGELOG.md`.
-9. Generate checksums/SBOM for released artifacts.
-10. Tag release, for example `v0.1.0-alpha`.
-11. Attach generated wheel/sdist if publishing artifacts.
+3. Run JSON schema validation against generated demo artifacts.
+4. Build Docker image.
+5. Run Docker smoke test.
+6. Regenerate demo report.
+7. Validate generated `summary.json` with `copyspace-guard validate-artifact --kind summary`.
+8. Review README metrics and the public product wording around deterministic candidates versus optimum.
+9. Update `CHANGELOG.md`.
+10. Generate checksums for wheel, sdist and Docker image digest.
+11. Generate or refresh SBOM for released artifacts.
+12. Sign release artifacts when publishing outside internal pilots.
+13. Tag release, for example `v0.1.0-alpha`.
+14. Attach generated wheel/sdist if publishing artifacts.

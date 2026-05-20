@@ -8,6 +8,11 @@ from typing import Any, Dict, Iterator, List, Tuple
 from .types import Chunk, Demand, Instance, MODEL, MODELS, Schedule
 
 
+def _is_header_row(row: List[str], required: set[str]) -> bool:
+    fields = {str(x).strip().lstrip("\ufeff") for x in row}
+    return required.issubset(fields)
+
+
 def load_json(path: str | Path) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -22,26 +27,41 @@ def dump_json(path: str | Path, obj: Any) -> None:
 def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
     rows: List[Tuple[int, int, int]] = []
     with open(path, "r", encoding="utf-8", newline="") as f:
-        sample = f.read(4096)
-        f.seek(0)
-        has_header = "src_slot" in sample and "dst_slot" in sample and "bits_total" in sample
-        if has_header:
-            rdr = csv.DictReader(f)
-            for i, row in enumerate(rdr, start=2):
-                if not row or all((v is None or str(v).strip() == "") for v in row.values()):
+        rdr = csv.reader(f)
+        first_row: List[str] | None = None
+        first_lineno = 0
+        for i, row in enumerate(rdr, start=1):
+            if not row or all(not x.strip() for x in row):
+                continue
+            first_row = row
+            first_lineno = i
+            break
+        if first_row is None:
+            raise ValueError("no demands found in CSV")
+
+        required = {"src_slot", "dst_slot", "bits_total"}
+        if _is_header_row(first_row, required):
+            fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
+            dict_rows = csv.DictReader(f, fieldnames=fieldnames)
+            for i, dict_row in enumerate(dict_rows, start=first_lineno + 1):
+                if not dict_row or all((v is None or str(v).strip() == "") for v in dict_row.values()):
                     continue
                 try:
-                    rows.append((int(row["src_slot"]), int(row["dst_slot"]), int(row["bits_total"])))
+                    rows.append((int(dict_row["src_slot"]), int(dict_row["dst_slot"]), int(dict_row["bits_total"])))
                 except Exception as e:
                     raise ValueError(f"bad CSV row {i}: expected src_slot,dst_slot,bits_total integers") from e
         else:
-            rdr = csv.reader(f)
-            for i, row in enumerate(rdr, start=1):
-                if not row or all(not x.strip() for x in row):
+            pending_rows = [(first_lineno, first_row)]
+            pending_rows.extend(enumerate(rdr, start=first_lineno + 1))
+            for i, list_row in pending_rows:
+                if not list_row or all(not x.strip() for x in list_row):
                     continue
-                if len(row) < 3:
+                if len(list_row) < 3:
                     raise ValueError(f"bad CSV row {i}: expected 3 columns")
-                rows.append((int(row[0]), int(row[1]), int(row[2])))
+                try:
+                    rows.append((int(list_row[0]), int(list_row[1]), int(list_row[2])))
+                except Exception as e:
+                    raise ValueError(f"bad CSV row {i}: expected src_slot,dst_slot,bits_total integers") from e
     if not rows:
         raise ValueError("no demands found in CSV")
     return rows
@@ -132,51 +152,83 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
     current_chunks: List[Chunk] = []
     last_tick = -1
     with open(path, "r", encoding="utf-8", newline="") as f:
-        sample = f.read(4096)
-        f.seek(0)
-        has_header = "tick" in sample and "src_slot" in sample and "dst_slot" in sample and "len_bits" in sample
-        if has_header:
-            iterator = csv.DictReader(f)
-            def parse(row: Dict[str, str], i: int) -> Tuple[int, Chunk]:
+        rdr = csv.reader(f)
+        first_row: List[str] | None = None
+        first_lineno = 0
+        for i, row in enumerate(rdr, start=1):
+            if not row or all(not x.strip() for x in row):
+                continue
+            first_row = row
+            first_lineno = i
+            break
+        if first_row is None:
+            raise ValueError("no schedule rows found in CSV")
+
+        required = {"tick", "src_slot", "dst_slot", "len_bits"}
+        if _is_header_row(first_row, required):
+            fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
+            iterator = csv.DictReader(f, fieldnames=fieldnames)
+            any_rows = False
+            for i, dict_row in enumerate(iterator, start=first_lineno + 1):
+                if not dict_row:
+                    continue
                 try:
-                    ti = int(row["tick"])
-                    ch = {"src_slot": int(row["src_slot"]), "dst_slot": int(row["dst_slot"]), "len_bits": int(row["len_bits"])}
+                    ti = int(dict_row["tick"])
+                    ch = {"src_slot": int(dict_row["src_slot"]), "dst_slot": int(dict_row["dst_slot"]), "len_bits": int(dict_row["len_bits"])}
                 except Exception as e:
                     raise ValueError(f"bad schedule CSV row {i}: expected tick,src_slot,dst_slot,len_bits integers") from e
-                return ti, ch
-            rows = ((i, row) for i, row in enumerate(iterator, start=2))
+                if ti < 0:
+                    raise ValueError(f"bad schedule CSV row {i}: tick must be >= 0")
+                if ti < last_tick:
+                    raise ValueError("schedule CSV must be sorted by non-decreasing tick for streaming validation")
+                any_rows = True
+                if current_tick is None:
+                    if fill_empty_ticks:
+                        for _ in range(ti):
+                            yield []
+                    current_tick = ti
+                if ti != current_tick:
+                    yield current_chunks
+                    if fill_empty_ticks:
+                        for _ in range(current_tick + 1, ti):
+                            yield []
+                    current_tick = ti
+                    current_chunks = []
+                current_chunks.append(ch)
+                last_tick = ti
         else:
-            iterator2 = csv.reader(f)
-            def parse(row: List[str], i: int) -> Tuple[int, Chunk]:  # type: ignore[no-redef]
-                if len(row) < 4:
+            rows = [(first_lineno, first_row)]
+            rows.extend(enumerate(rdr, start=first_lineno + 1))
+            any_rows = False
+            for i, list_row in rows:
+                if not list_row:
+                    continue
+                if len(list_row) < 4:
                     raise ValueError(f"bad schedule CSV row {i}: expected 4 columns")
-                return int(row[0]), {"src_slot": int(row[1]), "dst_slot": int(row[2]), "len_bits": int(row[3])}
-            rows = ((i, row) for i, row in enumerate(iterator2, start=1))
-
-        any_rows = False
-        for i, row in rows:
-            if not row:
-                continue
-            ti, ch = parse(row, i)  # type: ignore[arg-type]
-            if ti < 0:
-                raise ValueError(f"bad schedule CSV row {i}: tick must be >= 0")
-            if ti < last_tick:
-                raise ValueError("schedule CSV must be sorted by non-decreasing tick for streaming validation")
-            any_rows = True
-            if current_tick is None:
-                if fill_empty_ticks:
-                    for _ in range(ti):
-                        yield []
-                current_tick = ti
-            if ti != current_tick:
-                yield current_chunks
-                if fill_empty_ticks:
-                    for _ in range(current_tick + 1, ti):
-                        yield []
-                current_tick = ti
-                current_chunks = []
-            current_chunks.append(ch)
-            last_tick = ti
+                try:
+                    ti = int(list_row[0])
+                    ch = {"src_slot": int(list_row[1]), "dst_slot": int(list_row[2]), "len_bits": int(list_row[3])}
+                except Exception as e:
+                    raise ValueError(f"bad schedule CSV row {i}: expected tick,src_slot,dst_slot,len_bits integers") from e
+                if ti < 0:
+                    raise ValueError(f"bad schedule CSV row {i}: tick must be >= 0")
+                if ti < last_tick:
+                    raise ValueError("schedule CSV must be sorted by non-decreasing tick for streaming validation")
+                any_rows = True
+                if current_tick is None:
+                    if fill_empty_ticks:
+                        for _ in range(ti):
+                            yield []
+                    current_tick = ti
+                if ti != current_tick:
+                    yield current_chunks
+                    if fill_empty_ticks:
+                        for _ in range(current_tick + 1, ti):
+                            yield []
+                    current_tick = ti
+                    current_chunks = []
+                current_chunks.append(ch)
+                last_tick = ti
 
         if not any_rows:
             raise ValueError("no schedule rows found in CSV")

@@ -1,6 +1,6 @@
 """Backward-compatible public API re-exports for Copy-Space Guard."""
 from .anonymize import anonymize_demands_csv, anonymize_schedule_csv
-from .bounds import lower_bound_components, lower_bound_ticks
+from .bounds import MAX_EXHAUSTIVE_SUBSET_LIMIT, lower_bound_components, lower_bound_ticks
 from .io import (
     demand_map,
     dump_json,
@@ -41,6 +41,7 @@ __all__ = [
     "load_config",
     "lower_bound_components",
     "lower_bound_ticks",
+    "MAX_EXHAUSTIVE_SUBSET_LIMIT",
     "iter_baseline",
     "iter_greedy",
     "DEFAULT_EXACT_CHUNK_LIMIT",
