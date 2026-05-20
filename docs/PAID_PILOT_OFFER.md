@@ -44,7 +44,7 @@ At least one of:
 
 ## Fixed-scope pricing
 
-### Diagnostic Audit — $12,500
+### Diagnostic Audit — fixed-scope paid pilot
 
 - one workload;
 - one input format;
@@ -52,7 +52,7 @@ At least one of:
 - baseline vs greedy comparison;
 - ROI/executive report and one review call.
 
-### Optimization Sprint — $45,000
+### Optimization Sprint — follow-on paid sprint
 
 - up to three workloads;
 - custom importer;
@@ -60,7 +60,7 @@ At least one of:
 - CI gate integration draft;
 - model extension recommendation.
 
-### Enterprise Pilot — from $95,000
+### Enterprise Pilot — with enterprise follow-on pricing
 
 - on-prem packaging;
 - private adapters;

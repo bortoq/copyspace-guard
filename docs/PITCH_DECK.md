@@ -59,7 +59,7 @@ Data Movement Savings Audit:
 - one workload;
 - report bundle;
 - CI gate;
-- $12,500 fixed fee.
+- a fixed-scope pilot fee fixed fee.
 
 ## Slide 10 — Ask
 

@@ -31,6 +31,7 @@ def metric_table(current: Report, candidate: Report, comparison: Dict[str, Any],
         ("Ticks total", str(current.ticks_total), str(candidate.ticks_total)),
         ("Degree lower bound", str(current.degree_lower_bound), str(candidate.degree_lower_bound)),
         ("Capacity lower bound", str(current.capacity_lower_bound), str(candidate.capacity_lower_bound)),
+        ("Density lower bound", str(current.density_lower_bound), str(candidate.density_lower_bound)),
         ("Effective lower-bound ticks", str(current.lower_bound_ticks), str(candidate.lower_bound_ticks)),
         ("Gap to lower bound", pct(current.gap_to_lower_bound), pct(candidate.gap_to_lower_bound)),
         ("Utilization", pct(current.utilization), pct(candidate.utilization)),
@@ -40,11 +41,14 @@ def metric_table(current: Report, candidate: Report, comparison: Dict[str, Any],
     for name, a, b in rows:
         out += f"| {name} | {a} | {b} |\n"
     out += "\n"
-    out += f"- Saved ticks: **{comparison['saved_ticks']:,}** ({pct(comparison['saved_ticks_pct'])})\n"
-    out += f"- Gap reduction: **{comparison['gap_reduction_ticks']:,} ticks**\n"
-    out += f"- Utilization delta: **{pct(comparison['utilization_delta'])}**\n"
-    if comparison.get("cost_per_tick", 0) > 0:
-        out += f"- Estimated savings at {money(comparison['cost_per_tick'])}/tick: **{money(comparison['estimated_savings'])}** per run\n"
+    if not comparison.get("comparable", True):
+        out += f"- Comparison status: **not comparable** — {comparison.get('comparison_note', '')}\n"
+    else:
+        out += f"- Saved ticks: **{comparison['saved_ticks']:,}** ({pct(comparison['saved_ticks_pct'])})\n"
+        out += f"- Gap reduction: **{comparison['gap_reduction_ticks']:,} ticks**\n"
+        out += f"- Utilization delta: **{pct(comparison['utilization_delta'])}**\n"
+        if comparison.get("cost_per_tick", 0) > 0:
+            out += f"- Estimated savings at {money(comparison['cost_per_tick'])}/tick: **{money(comparison['estimated_savings'])}** per run\n"
     return out
 
 
@@ -75,11 +79,14 @@ def render_markdown(summary: Dict[str, Any]) -> str:
     roi = summary.get("roi") or {}
     today = date.today().isoformat()
     annual = roi.get("savings_per_year_usd", 0.0)
-    business_line = (
-        f"Estimated annualized savings under the supplied ROI model: **{money(annual)}**."
-        if annual > 0 else
-        "No annualized ROI model was supplied; this report quantifies technical savings in ticks, gap and utilization."
-    )
+    if not comp.get("comparable", True):
+        business_line = f"Savings are not computed because validation failed: {comp.get('comparison_note', '')}"
+    else:
+        business_line = (
+            f"Estimated annualized savings under the supplied ROI model: **{money(annual)}**."
+            if annual > 0 else
+            "No annualized ROI model was supplied; this report quantifies technical savings in ticks, gap and utilization."
+        )
     return f"""# Copy-Space Guard — Data Movement Audit Report
 
 Date: {today}  
@@ -94,7 +101,7 @@ Demands: **{len(inst.get('demands', []))} directed pairs**
 This report validates and compares two deterministic schedules for the same data-movement demand matrix.
 The `{current_label}` schedule is treated as the current strategy. The `{candidate_label}` schedule is the deterministic candidate strategy.
 
-**Business impact:** `{candidate_label}` saves **{comp['saved_ticks']:,} ticks** versus `{current_label}` and improves utilization by **{pct(comp['utilization_delta'])}**. {business_line}
+**Business impact:** {business_line if not comp.get("comparable", True) else f"`{candidate_label}` saves **{comp['saved_ticks']:,} ticks** versus `{current_label}` and improves utilization by **{pct(comp['utilization_delta'])}**. {business_line}"}
 
 {metric_table(cur, cand, comp, current_label, candidate_label)}
 
@@ -103,7 +110,8 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 ## Commercial interpretation
 
 - `degree_lower_bound` is derived from endpoint pressure.
-- `capacity_lower_bound` is derived from total chunks divided by per-tick matching capacity.
+- `capacity_lower_bound` is derived from total chunks divided by full-graph per-tick matching capacity.
+- `density_lower_bound` is derived from all subset matching-capacity constraints when the slot count is within the exhaustive limit.
 - `lower_bound_ticks` is the maximum of currently implemented deterministic lower bounds.
 - `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared STRICT1 model.
 - A positive saved-ticks number is potential time/capacity savings per workload run before deeper topology-specific modeling.

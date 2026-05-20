@@ -52,4 +52,4 @@ Explain: this becomes a regression gate for scheduler/storage/query changes.
 
 ## 5:00 — Close
 
-Offer Diagnostic Audit: 10 business days, fixed scope, $12,500.
+Offer Diagnostic Audit: 10 business days, fixed scope, a fixed-scope pilot fee.

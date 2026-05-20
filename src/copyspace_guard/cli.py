@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .core import (
     anonymize_demands_csv,
+    anonymize_schedule_csv,
     compare_reports,
     compute_roi,
     dump_json,
@@ -14,10 +15,14 @@ from .core import (
     load_config,
     load_json,
     schedule_from_csv,
+    iter_baseline,
+    iter_greedy,
     solve_baseline,
     solve_greedy,
     roi_cost_per_tick,
     validate_schedule,
+    validate_schedule_csv,
+    validate_ticks_iter,
     write_schedule_csv,
 )
 from .report import write_reports
@@ -30,19 +35,33 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     if args.current_schedule_json and args.current_schedule_csv:
         raise SystemExit("use only one of --current-schedule-json or --current-schedule-csv")
 
-    if args.current_schedule_json:
-        current = load_json(args.current_schedule_json)
-        current_label = "customer_current"
-    elif args.current_schedule_csv:
-        current = schedule_from_csv(args.current_schedule_csv)
-        current_label = "customer_current"
+    current = None
+    greedy = None
+    if args.summary_only:
+        if args.current_schedule_json:
+            current = load_json(args.current_schedule_json)
+            current_label = "customer_current"
+            rep_current = validate_schedule(inst, current)
+        elif args.current_schedule_csv:
+            current_label = "customer_current"
+            rep_current = validate_schedule_csv(inst, args.current_schedule_csv)
+        else:
+            current_label = "baseline"
+            rep_current = validate_ticks_iter(inst, iter_baseline(inst))
+        rep_greedy = validate_ticks_iter(inst, iter_greedy(inst))
     else:
-        current = solve_baseline(inst)
-        current_label = "baseline"
-
-    greedy = solve_greedy(inst)
-    rep_current = validate_schedule(inst, current)
-    rep_greedy = validate_schedule(inst, greedy)
+        if args.current_schedule_json:
+            current = load_json(args.current_schedule_json)
+            current_label = "customer_current"
+        elif args.current_schedule_csv:
+            current = schedule_from_csv(args.current_schedule_csv)
+            current_label = "customer_current"
+        else:
+            current = solve_baseline(inst)
+            current_label = "baseline"
+        greedy = solve_greedy(inst)
+        rep_current = validate_schedule(inst, current)
+        rep_greedy = validate_schedule(inst, greedy)
     roi_config = {}
     if args.roi:
         loaded_roi = load_config(args.roi)
@@ -53,6 +72,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     dump_json(outdir / "instance.json", inst)
     if not args.summary_only:
+        assert current is not None
+        assert greedy is not None
         dump_json(outdir / f"schedule_{current_label}.json", current)
         write_schedule_csv(outdir / f"schedule_{current_label}.csv", current)
         dump_json(outdir / "schedule_greedy.json", greedy)
@@ -149,7 +170,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
 
 def cmd_anonymize(args: argparse.Namespace) -> int:
-    mapping = anonymize_demands_csv(args.csv, args.out, args.mapping)
+    if args.kind == "schedule":
+        mapping = anonymize_schedule_csv(args.csv, args.out, args.mapping)
+    else:
+        mapping = anonymize_demands_csv(args.csv, args.out, args.mapping)
     print(f"anonymized CSV written to: {args.out}")
     if args.mapping:
         print(f"mapping written to: {args.mapping}")
@@ -205,6 +229,7 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--csv", required=True)
     an.add_argument("--out", required=True)
     an.add_argument("--mapping", default=None)
+    an.add_argument("--kind", choices=["demands", "schedule"], default="demands")
     an.set_defaults(func=cmd_anonymize)
     return p
 
