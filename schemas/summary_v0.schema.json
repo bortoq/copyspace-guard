@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bortoq/copyspace-guard/schemas/summary_v0.schema.json",
+  "title": "Copy-Space Guard Summary v0",
+  "type": "object",
+  "required": ["instance", "current_label", "candidate_label", "reports", "comparison", "roi", "artifacts"],
+  "properties": {
+    "instance": {"type": "object"},
+    "current_label": {"type": "string"},
+    "candidate_label": {"type": "string"},
+    "reports": {
+      "type": "object",
+      "required": ["greedy"],
+      "additionalProperties": {"$ref": "#/$defs/report"}
+    },
+    "comparison": {
+      "type": "object",
+      "required": ["comparable", "comparison_note", "saved_ticks", "saved_ticks_pct", "gap_reduction_ticks", "utilization_delta", "estimated_savings", "cost_per_tick"],
+      "properties": {
+        "comparable": {"type": "boolean"},
+        "comparison_note": {"type": "string"},
+        "saved_ticks": {"type": "integer"},
+        "saved_ticks_pct": {"type": "number"},
+        "gap_reduction_ticks": {"type": "integer"},
+        "utilization_delta": {"type": "number"},
+        "estimated_savings": {"type": "number"},
+        "cost_per_tick": {"type": "number"}
+      },
+      "additionalProperties": true
+    },
+    "roi": {
+      "type": "object",
+      "required": ["cost_per_tick", "saved_ticks_per_run", "saved_seconds_per_run", "saved_hours_per_run", "savings_per_run_usd", "runs_per_day", "monthly_runs", "yearly_runs", "savings_per_month_usd", "savings_per_year_usd"],
+      "properties": {
+        "inputs": {"type": "object"},
+        "cost_per_tick": {"type": "number"},
+        "saved_ticks_per_run": {"type": "number"},
+        "saved_seconds_per_run": {"type": "number"},
+        "saved_hours_per_run": {"type": "number"},
+        "savings_per_run_usd": {"type": "number"},
+        "runs_per_day": {"type": "number"},
+        "monthly_runs": {"type": "number"},
+        "yearly_runs": {"type": "number"},
+        "savings_per_month_usd": {"type": "number"},
+        "savings_per_year_usd": {"type": "number"}
+      },
+      "additionalProperties": true
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["instance", "schedule_current", "schedule_current_csv", "schedule_greedy", "schedule_greedy_csv", "report_current", "report_greedy", "report_markdown", "report_html"],
+      "properties": {
+        "instance": {"type": "string"},
+        "schedule_current": {"type": ["string", "null"]},
+        "schedule_current_csv": {"type": ["string", "null"]},
+        "schedule_greedy": {"type": ["string", "null"]},
+        "schedule_greedy_csv": {"type": ["string", "null"]},
+        "report_current": {"type": "string"},
+        "report_greedy": {"type": "string"},
+        "report_markdown": {"type": "string"},
+        "report_html": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "report": {
+      "type": "object",
+      "required": ["status", "version", "model", "errors", "ticks_total", "bits_total", "bits_per_tick", "expected_bits_per_tick", "utilization", "degree_lower_bound", "capacity_lower_bound", "density_lower_bound", "lower_bound_ticks", "gap_ticks", "gap_to_lower_bound", "bounds_complete"],
+      "properties": {
+        "status": {"enum": ["PASS", "FAIL"]},
+        "version": {"const": 0},
+        "model": {"enum": ["STRICT1", "READ1_WRITE1"]},
+        "errors": {"type": "array", "items": {"type": "object"}},
+        "ticks_total": {"type": "integer", "minimum": 0},
+        "bits_total": {"type": "integer", "minimum": 0},
+        "bits_per_tick": {"type": "number", "minimum": 0},
+        "expected_bits_per_tick": {"type": "integer", "minimum": 0},
+        "utilization": {"type": "number", "minimum": 0},
+        "degree_lower_bound": {"type": "integer", "minimum": 0},
+        "capacity_lower_bound": {"type": "integer", "minimum": 0},
+        "density_lower_bound": {"type": "integer", "minimum": 0},
+        "max_degree_chunks": {"type": "integer", "minimum": 0},
+        "lower_bound_ticks": {"type": "integer", "minimum": 0},
+        "gap_ticks": {"type": "integer"},
+        "gap_to_lower_bound": {"type": "number"},
+        "lower_bound_witness": {"type": "object"},
+        "bounds_complete": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

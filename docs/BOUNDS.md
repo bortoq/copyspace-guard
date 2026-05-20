@@ -27,3 +27,13 @@ multigraph edge-coloring instance. If a candidate equals the lower bound, it is
 optimal with respect to the implemented bound family and the declared STRICT1
 model. For difficult graphs, the true optimum may still be higher than the
 reported lower bound.
+
+## READ1_WRITE1 bounds
+
+For `READ1_WRITE1`, each slot may send once and receive once per tick. The implemented bounds are:
+
+- maximum outgoing chunk count per source slot;
+- maximum incoming chunk count per destination slot;
+- full-graph capacity bound `ceil(total_chunks / slots)`.
+
+These bounds are marked complete for the current v0 implementation.

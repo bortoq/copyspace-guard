@@ -1,43 +1,37 @@
 # Product roadmap
 
-## v0.1 — Sellable MVP
+## v0.1 — Public pilot CLI
 
 - CSV demand import.
-- STRICT1 validation with accumulated diagnostics.
-- Baseline and greedy schedule generation.
-- Lower-bound gap and utilization metrics with degree and capacity lower bounds.
-- Markdown/HTML/JSON report.
-- CI gate recipe.
+- STRICT1 and READ1_WRITE1 resource models.
+- Streaming `--summary-only` analysis path.
+- STRICT1 degree/capacity/subset-density lower bounds.
+- Validation with accumulated diagnostics.
+- ROI report and CI gate.
+- Markdown/HTML/JSON report bundle.
+- Demand and schedule anonymization.
+- JSON schemas for v0 artifacts.
 
-## v0.2 — Customer pilot hardening
+## v0.2 — Pilot hardening
 
-- Import customer-provided schedules.
-- Better report branding.
-- Threshold config file.
-- Batch mode for multiple workloads.
-- GitHub/GitLab/Jenkins examples.
-- Sanitization helper for slot IDs.
+- Cleaner grouped diagnostics in HTML reports.
+- `--max-errors` and `total_errors` reporting.
+- More sales/regression examples from realistic traces.
+- Build/wheel and Docker release artifacts.
+- Case-study template and first public anonymized case study.
 
 ## v0.3 — Model extensions
 
-- READ1_WRITE1 model.
 - Topology-aware links.
 - Asymmetric bandwidth.
 - Broadcast/fanout support.
 - Storage tier constraints.
+- Optional exact solver integration for small instances.
 
-## v0.4 — Enterprise audit
+## v1.0 — Enterprise-ready CLI
 
-- Trace/replay harness.
-- Cost model profiles.
-- Signed report bundle.
-- VCopySpace receipt/ledger prototype.
-- Host credit / cost attribution demo.
-
-## v1.0 — Enterprise product
-
-- On-prem package.
-- Private adapters.
-- Scheduler comparison dashboard.
-- CI/CD integrations.
-- Support SLA.
+- Versioned artifact schemas.
+- Signed report bundles.
+- SBOM and release checksums.
+- Performance benchmarks and scalability policy.
+- Stable public API.

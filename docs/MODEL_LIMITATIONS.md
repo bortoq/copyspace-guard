@@ -1,6 +1,6 @@
 # Model limitations
 
-Copy-Space Guard v0 uses `STRICT1`, a deliberately simple baseline model.
+Copy-Space Guard v0 supports two deliberately simple endpoint-capacity models: `STRICT1` and `READ1_WRITE1`.
 
 ## STRICT1
 
@@ -27,13 +27,19 @@ STRICT1 is useful when the system behaves like endpoint-limited data movement:
 - network topology and routes;
 - asymmetric bandwidth;
 - multiple NICs or queues per endpoint;
-- separate read and write capacity;
 - broadcast/fanout semantics;
 - storage tier locality;
 - address-level offsets inside endpoints;
 - real transfer execution.
 
-## Next likely model
+## READ1_WRITE1
 
-The next useful extension is `READ1_WRITE1`: one read and one write per slot per
-tick. This is often closer to full-duplex systems.
+`READ1_WRITE1` allows one outgoing and one incoming transfer per slot per tick. It is useful for systems that approximate full-duplex endpoint behavior.
+
+Still not modeled:
+
+- multiple independent NICs per host;
+- shared-switch oversubscription;
+- storage media contention;
+- object-store request limits;
+- path-level routing.

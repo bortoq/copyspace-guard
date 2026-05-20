@@ -23,11 +23,11 @@ The report remains useful as long as relationships and volumes are preserved.
 
 ## On-prem option
 
-The MVP runs locally with no external dependencies and no network calls. For sensitive environments, run it inside the customer's own workstation, CI runner or cluster login node.
+The CLI runs locally with no runtime Python dependencies and no network calls. For sensitive environments, run it inside the customer's own workstation, CI runner or cluster login node.
 
-## Not yet production security
+## Security boundary
 
-This MVP is not a production security product. It does not include:
+Copy-Space Guard is a local-only metadata analysis tool, not a hosted security boundary. It does not include:
 
 - compliance certification;
 - access-control system;
@@ -35,3 +35,11 @@ This MVP is not a production security product. It does not include:
 - production multi-tenant SaaS hardening.
 
 Enterprise roadmap can add VCopySpace-style receipts, ledger settlement and replayable trace audit.
+
+## Mapping file sensitivity
+
+Anonymization mapping files can reveal the original endpoint names. Treat `mapping.json` as sensitive and do not share it unless you intentionally want to reveal the mapping.
+
+## Security status
+
+Copy-Space Guard is a local-only CLI and not a multi-tenant SaaS security boundary. It is suitable for metadata-only local pilots, but production governance should still review trace handling, report sharing, and retention policy.

@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
-MODEL = "STRICT1"
+STRICT1 = "STRICT1"
+READ1_WRITE1 = "READ1_WRITE1"
+MODELS = {STRICT1, READ1_WRITE1}
+MODEL = STRICT1  # backward-compatible default model name
 
 Demand = Dict[str, int]
 Chunk = Dict[str, int]

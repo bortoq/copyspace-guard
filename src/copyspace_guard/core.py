@@ -15,11 +15,14 @@ from .io import (
 )
 from .roi import compare_reports, compute_roi, roi_cost_per_tick
 from .solvers import iter_baseline, iter_greedy, solve_baseline, solve_greedy
-from .types import Chunk, Demand, Instance, MODEL, Report, Schedule
+from .types import Chunk, Demand, Instance, MODEL, MODELS, READ1_WRITE1, STRICT1, Report, Schedule
 from .validate import fail_report, gate_report, validate_schedule, validate_schedule_csv, validate_ticks_iter
 
 __all__ = [
     "MODEL",
+    "STRICT1",
+    "READ1_WRITE1",
+    "MODELS",
     "Demand",
     "Chunk",
     "Schedule",

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bortoq/copyspace-guard/schemas/instance_v0.schema.json",
+  "title": "Copy-Space Guard Instance v0",
+  "type": "object",
+  "required": ["version", "model", "slots", "copy_bw_bits_per_tick", "demands"],
+  "properties": {
+    "version": {"const": 0},
+    "model": {"enum": ["STRICT1", "READ1_WRITE1"]},
+    "slots": {"type": "integer", "minimum": 1},
+    "copy_bw_bits_per_tick": {"type": "integer", "minimum": 1},
+    "id": {"type": "string"},
+    "notes": {"type": "string"},
+    "demands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["src_slot", "dst_slot", "bits_total"],
+        "properties": {
+          "src_slot": {"type": "integer", "minimum": 0},
+          "dst_slot": {"type": "integer", "minimum": 0},
+          "bits_total": {"type": "integer", "minimum": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

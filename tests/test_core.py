@@ -1,11 +1,12 @@
-import json
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from copyspace_guard.core import (
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from copyspace_guard.core import (  # noqa: E402
     compute_roi,
     gate_report,
     instance_from_csv,
@@ -14,8 +15,6 @@ from copyspace_guard.core import (
     solve_greedy,
     validate_schedule,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class CoreTests(unittest.TestCase):
@@ -94,3 +93,42 @@ class CoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ModelExtensionTests(unittest.TestCase):
+    def test_read1_write1_allows_send_and_receive_same_tick(self):
+        inst = {
+            "version": 0,
+            "model": "READ1_WRITE1",
+            "slots": 3,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [
+                {"src_slot": 0, "dst_slot": 1, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 2, "bits_total": 1},
+            ],
+        }
+        sched = {"version": 0, "model": "READ1_WRITE1", "ticks": [[
+            {"src_slot": 0, "dst_slot": 1, "len_bits": 1},
+            {"src_slot": 1, "dst_slot": 2, "len_bits": 1},
+        ]]}
+        rep = validate_schedule(inst, sched)
+        self.assertEqual(rep.status, "PASS", rep.errors)
+        self.assertEqual(rep.ticks_total, 1)
+
+    def test_bounds_incomplete_for_large_strict1(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 21,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        lbs = lower_bound_components(inst)
+        self.assertFalse(lbs["bounds_complete"])
+
+class SchemaFilesTests(unittest.TestCase):
+    def test_schema_files_are_valid_json(self):
+        import json
+        for name in ["instance_v0.schema.json", "schedule_v0.schema.json", "summary_v0.schema.json"]:
+            data = json.loads((ROOT / "schemas" / name).read_text(encoding="utf-8"))
+            self.assertIn("$schema", data)
+            self.assertIn("title", data)

@@ -21,7 +21,7 @@ Optional:
 - Current schedule if available.
 - Logs from job scheduler, storage system, data pipeline or query engine.
 - Approximate cost per tick/window, GPU-hour, node-hour or failed SLA.
-- Constraints not captured by STRICT1.
+- Constraints not captured by STRICT1 or READ1_WRITE1.
 
 ## Vendor delivers
 
@@ -48,7 +48,7 @@ At least one of:
 
 - one workload;
 - one input format;
-- STRICT1 model;
+- STRICT1 or READ1_WRITE1 model;
 - baseline vs greedy comparison;
 - ROI/executive report and one review call.
 
@@ -60,7 +60,7 @@ At least one of:
 - CI gate integration draft;
 - model extension recommendation.
 
-### Enterprise Pilot — with enterprise follow-on pricing
+### Enterprise Pilot — enterprise follow-on
 
 - on-prem packaging;
 - private adapters;

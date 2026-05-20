@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, Iterable, Iterator, List, Tuple
 
 from .io import validate_instance
-from .types import Chunk, Demand, Instance, Schedule
+from .types import Chunk, Demand, Instance, READ1_WRITE1, Schedule
 
 
 def _aggregate_demands(demands: Iterable[Demand]) -> List[Demand]:
@@ -24,29 +24,45 @@ def _pending_from_demands(demands: Iterable[Demand]) -> List[Dict[str, int]]:
     ]
 
 
+def _can_use(model: str, used: set[int], used_src: set[int], used_dst: set[int], s: int, t: int) -> bool:
+    if model == READ1_WRITE1:
+        return s not in used_src and t not in used_dst
+    return s not in used and t not in used
+
+
+def _mark_use(model: str, used: set[int], used_src: set[int], used_dst: set[int], s: int, t: int) -> None:
+    if model == READ1_WRITE1:
+        used_src.add(s)
+        used_dst.add(t)
+    else:
+        used.add(s)
+        used.add(t)
+
+
 def iter_baseline(inst: Instance) -> Iterator[List[Chunk]]:
     _slots, bw, demands = validate_instance(inst)
+    model = str(inst.get("model", "STRICT1"))
     pending = _pending_from_demands(demands)
     while pending:
-        used = set()
+        used: set[int] = set()
+        used_src: set[int] = set()
+        used_dst: set[int] = set()
         tick: List[Chunk] = []
         new_pending: List[Dict[str, int]] = []
         for item in pending:
             s, t, rem = item["src_slot"], item["dst_slot"], item["rem_bits"]
-            if s in used or t in used:
+            if not _can_use(model, used, used_src, used_dst, s, t):
                 new_pending.append(item)
                 continue
-            l = min(bw, rem)
-            tick.append({"src_slot": s, "dst_slot": t, "len_bits": l})
-            used.add(s)
-            used.add(t)
-            if rem - l > 0:
-                new_pending.append({"src_slot": s, "dst_slot": t, "rem_bits": rem - l})
+            length = min(bw, rem)
+            tick.append({"src_slot": s, "dst_slot": t, "len_bits": length})
+            _mark_use(model, used, used_src, used_dst, s, t)
+            if rem - length > 0:
+                new_pending.append({"src_slot": s, "dst_slot": t, "rem_bits": rem - length})
         if not tick:
             raise RuntimeError("baseline solver made no progress")
         yield tick
         pending = new_pending
-
 
 def _pending_degrees(pending: List[Dict[str, int]], bw: int) -> Dict[int, int]:
     deg: Dict[int, int] = {}
@@ -59,6 +75,7 @@ def _pending_degrees(pending: List[Dict[str, int]], bw: int) -> Dict[int, int]:
 
 def iter_greedy(inst: Instance) -> Iterator[List[Chunk]]:
     _slots, bw, demands = validate_instance(inst)
+    model = str(inst.get("model", "STRICT1"))
     pending = _pending_from_demands(demands)
     while pending:
         deg = _pending_degrees(pending, bw)
@@ -71,20 +88,21 @@ def iter_greedy(inst: Instance) -> Iterator[List[Chunk]]:
             return (-score, s, t, -min(bw, rem), i)
 
         order.sort(key=key)
-        used = set()
+        used: set[int] = set()
+        used_src: set[int] = set()
+        used_dst: set[int] = set()
         tick: List[Chunk] = []
         chosen = [False] * len(pending)
         chosen_len = [0] * len(pending)
         for i in order:
             s, t, rem = pending[i]["src_slot"], pending[i]["dst_slot"], pending[i]["rem_bits"]
-            if s in used or t in used:
+            if not _can_use(model, used, used_src, used_dst, s, t):
                 continue
-            l = min(bw, rem)
-            tick.append({"src_slot": s, "dst_slot": t, "len_bits": l})
+            length = min(bw, rem)
+            tick.append({"src_slot": s, "dst_slot": t, "len_bits": length})
             chosen[i] = True
-            chosen_len[i] = l
-            used.add(s)
-            used.add(t)
+            chosen_len[i] = length
+            _mark_use(model, used, used_src, used_dst, s, t)
         if not tick:
             raise RuntimeError("greedy solver made no progress")
         new_pending: List[Dict[str, int]] = []
@@ -99,13 +117,13 @@ def iter_greedy(inst: Instance) -> Iterator[List[Chunk]]:
         pending = new_pending
 
 
-def materialize(ticks: Iterable[List[Chunk]]) -> Schedule:
-    return {"version": 0, "model": "STRICT1", "ticks": list(ticks)}
+def materialize(ticks: Iterable[List[Chunk]], model: str = "STRICT1") -> Schedule:
+    return {"version": 0, "model": model, "ticks": list(ticks)}
 
 
 def solve_baseline(inst: Instance) -> Schedule:
-    return materialize(iter_baseline(inst))
+    return materialize(iter_baseline(inst), str(inst.get("model", "STRICT1")))
 
 
 def solve_greedy(inst: Instance) -> Schedule:
-    return materialize(iter_greedy(inst))
+    return materialize(iter_greedy(inst), str(inst.get("model", "STRICT1")))

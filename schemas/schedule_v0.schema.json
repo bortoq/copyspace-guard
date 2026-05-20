@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bortoq/copyspace-guard/schemas/schedule_v0.schema.json",
+  "title": "Copy-Space Guard Schedule v0",
+  "type": "object",
+  "required": ["version", "model", "ticks"],
+  "properties": {
+    "version": {"const": 0},
+    "model": {"enum": ["STRICT1", "READ1_WRITE1"]},
+    "ticks": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["src_slot", "dst_slot", "len_bits"],
+          "properties": {
+            "src_slot": {"type": "integer", "minimum": 0},
+            "dst_slot": {"type": "integer", "minimum": 0},
+            "len_bits": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -10,15 +10,15 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-seri
 </head>
 <body><main class="wrap">
 <section class="hero">
-<div><span class="badge">Metadata-only deterministic audit</span><h1>Find wasted data movement before it burns GPU budget.</h1><p>Copy-Space Guard validates transfer schedules, compares them against deterministic lower-bound metrics, and produces CI-ready reports for AI, HPC and analytics infrastructure.</p><a class="cta" href="docs/PAID_PILOT_OFFER.md">Pilot offer</a><a class="ghost" href="artifacts/demo/report.html">View demo report</a></div>
+<div><span class="badge">Metadata-only deterministic audit</span><h1>Find wasted data movement before it burns GPU budget.</h1><p>Copy-Space Guard validates transfer schedules, compares them against deterministic lower-bound metrics, and produces CI-ready reports for AI, HPC and analytics infrastructure.</p><a class="cta" href="docs/PAID_PILOT_OFFER.md">Pilot offer</a><a class="ghost" href="README.md">View README</a></div>
 <div class="card"><pre>copyspace-guard analyze \
   --csv transfer_demands.csv \
   --bw 1048576 \
-  --cost-per-tick 0.02 \
+  --roi examples/roi.yml \
   --outdir report
 
-baseline ticks=768 gap=50.0%
-greedy   ticks=549 gap=7.2%
+baseline ticks=768 gap=39.9%
+greedy   ticks=549 gap=0.0%
 saved_ticks=219</pre></div>
 </section>
 <section class="grid"><div class="card"><div class="metric">0</div><p>No payload data required</p></div><div class="card"><div class="metric">PASS/FAIL</div><p>Independent schedule validation</p></div><div class="card"><div class="metric">gap</div><p>Lower-bound distance and utilization</p></div></section>

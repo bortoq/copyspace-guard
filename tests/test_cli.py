@@ -27,6 +27,33 @@ class CliTests(unittest.TestCase):
             data = json.loads((out / "summary.json").read_text())
             self.assertEqual(data["reports"]["greedy"]["gap_ticks"], 0)
 
+    def test_read1_write1_summary_preserves_report_model(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--model", "READ1_WRITE1", "--summary-only", "--outdir", str(out))
+            data = json.loads((out / "summary.json").read_text())
+            self.assertEqual(data["instance"]["model"], "READ1_WRITE1")
+            self.assertEqual(data["reports"]["baseline"]["model"], "READ1_WRITE1")
+            self.assertEqual(data["reports"]["greedy"]["model"], "READ1_WRITE1")
+
+    def test_customer_current_artifact_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli(
+                "analyze",
+                "--csv", "examples/demo_bad_current_demands.csv",
+                "--bw", "256",
+                "--current-schedule-csv", "examples/demo_bad_current_schedule.csv",
+                "--outdir", str(out),
+            )
+            data = json.loads((out / "summary.json").read_text())
+            self.assertEqual(data["current_label"], "customer_current")
+            self.assertTrue((out / "schedule_customer_current.json").exists())
+            self.assertTrue((out / "schedule_customer_current.csv").exists())
+            self.assertTrue((out / "report_customer_current.json").exists())
+            self.assertEqual(data["artifacts"]["schedule_current"], "schedule_customer_current.json")
+            self.assertEqual(data["artifacts"]["report_current"], "report_customer_current.json")
+
     def test_invalid_current_is_not_comparable(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"
@@ -55,3 +82,21 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CliErrorTests(unittest.TestCase):
+    def test_unsorted_schedule_csv_is_clean_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            sched = Path(td) / "bad.csv"
+            sched.write_text("tick,src_slot,dst_slot,len_bits\n1,0,1,1\n0,1,2,1\n", encoding="utf-8")
+            demands = Path(td) / "demands.csv"
+            demands.write_text("src_slot,dst_slot,bits_total\n0,1,1\n1,2,1\n", encoding="utf-8")
+            rc = run_cli("analyze", "--csv", str(demands), "--bw", "1", "--current-schedule-csv", str(sched), "--summary-only", "--outdir", str(Path(td) / "out"), check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("ERROR:", rc.stderr)
+            self.assertNotIn("Traceback", rc.stderr)
+
+    def test_bench_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc = run_cli("bench", "--slots", "8", "--bits-per-edge", "1024", "--bw", "256", "--outdir", td)
+            self.assertEqual(rc.returncode, 0)
+            self.assertTrue((Path(td) / "bench.json").exists())

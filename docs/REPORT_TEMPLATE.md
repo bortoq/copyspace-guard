@@ -22,7 +22,7 @@ The current movement plan is `<X>%` above the deterministic lower bound under th
 1. Convert customer trace into `src_slot,dst_slot,bits_total` demand matrix.
 2. Validate structural assumptions.
 3. Generate baseline and candidate schedules.
-4. Validate schedules under STRICT1.
+4. Validate schedules under the declared resource model (`STRICT1` or `READ1_WRITE1`).
 5. Compute lower-bound gap, utilization and savings estimate.
 
 ## Metrics

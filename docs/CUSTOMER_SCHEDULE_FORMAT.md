@@ -51,3 +51,7 @@ copyspace-guard validate instance.json current_schedule.json
 - Missing tick numbers are treated as empty elapsed ticks by default.
 - This preserves runtime windows if a customer had idle periods.
 - Use `--compact-ticks` only when missing tick numbers should be ignored.
+
+## Streaming mode sort requirement
+
+When `copyspace-guard analyze --summary-only` is used with `--current-schedule-csv`, the schedule CSV is streamed and must be sorted by non-decreasing `tick`. This keeps memory usage bounded for large traces. If the file is not sorted, the CLI exits with a readable error.

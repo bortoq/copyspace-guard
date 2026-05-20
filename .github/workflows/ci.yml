@@ -17,8 +17,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: python -m pip install -e .
-      - name: Unit tests
+        run: python -m pip install -e ".[dev]"
+      - name: Static checks
+        run: ruff check --no-cache .
+      - name: Unit and CLI tests
         run: python -m unittest discover -s tests -v
       - name: CLI smoke
         run: |
@@ -30,3 +32,30 @@ jobs:
             --outdir artifacts/ci-smoke
           copyspace-guard gate artifacts/ci-smoke/summary.json \
             --config examples/copyspace_guard.yml
+      - name: READ1_WRITE1 smoke
+        run: |
+          copyspace-guard analyze \
+            --csv examples/ring15.csv \
+            --bw 256 \
+            --model READ1_WRITE1 \
+            --summary-only \
+            --outdir artifacts/ci-readwrite
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build sdist/wheel
+        run: |
+          python -m pip install -e ".[dev]"
+          python -m build --no-isolation
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t copyspace-guard .

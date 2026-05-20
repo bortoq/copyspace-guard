@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+import time
 
 from .core import (
     anonymize_demands_csv,
@@ -31,7 +32,7 @@ from .report import write_reports
 def cmd_analyze(args: argparse.Namespace) -> int:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    inst = instance_from_csv(args.csv, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes)
+    inst = instance_from_csv(args.csv, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     if args.current_schedule_json and args.current_schedule_csv:
         raise SystemExit("use only one of --current-schedule-json or --current-schedule-csv")
 
@@ -54,7 +55,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             current = load_json(args.current_schedule_json)
             current_label = "customer_current"
         elif args.current_schedule_csv:
-            current = schedule_from_csv(args.current_schedule_csv)
+            current = schedule_from_csv(args.current_schedule_csv, model=str(inst.get("model", "STRICT1")))
             current_label = "customer_current"
         else:
             current = solve_baseline(inst)
@@ -131,7 +132,7 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def cmd_schedule_csv_to_json(args: argparse.Namespace) -> int:
-    sched = schedule_from_csv(args.csv, fill_empty_ticks=not args.compact_ticks)
+    sched = schedule_from_csv(args.csv, fill_empty_ticks=not args.compact_ticks, model=args.model)
     dump_json(args.out, sched)
     print(f"schedule JSON written to: {args.out}")
     return 0
@@ -181,13 +182,41 @@ def cmd_anonymize(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench(args: argparse.Namespace) -> int:
+    rows = ["src_slot,dst_slot,bits_total"]
+    for i in range(args.slots):
+        rows.append(f"{i},{(i + 1) % args.slots},{args.bits_per_edge}")
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    demands = outdir / "bench_demands.csv"
+    demands.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    t0 = time.perf_counter()
+    inst = instance_from_csv(demands, bw=args.bw, model=args.model)
+    rep_baseline = validate_ticks_iter(inst, iter_baseline(inst))
+    rep_greedy = validate_ticks_iter(inst, iter_greedy(inst))
+    elapsed = time.perf_counter() - t0
+    result = {
+        "slots": args.slots,
+        "bits_per_edge": args.bits_per_edge,
+        "bw": args.bw,
+        "model": args.model,
+        "elapsed_seconds": elapsed,
+        "baseline": rep_baseline.to_dict(),
+        "greedy": rep_greedy.to_dict(),
+    }
+    dump_json(outdir / "bench.json", result)
+    print(f"bench elapsed={elapsed:.6f}s slots={args.slots} model={args.model} baseline_ticks={rep_baseline.ticks_total} greedy_ticks={rep_greedy.ticks_total}")
+    return 0 if rep_baseline.status == "PASS" and rep_greedy.status == "PASS" else 2
+
+
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="copyspace-guard", description="Deterministic data-movement audit MVP")
+    p = argparse.ArgumentParser(prog="copyspace-guard", description="Deterministic data-movement audit and CI gate")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     a = sub.add_parser("analyze", help="run baseline vs optimized analysis from demands CSV")
     a.add_argument("--csv", required=True, help="CSV with src_slot,dst_slot,bits_total")
     a.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
+    a.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
     a.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
     a.add_argument("--id", default="demo-workload")
     a.add_argument("--notes", default=None)
@@ -213,6 +242,7 @@ def build_parser() -> argparse.ArgumentParser:
     sc = sub.add_parser("schedule-csv-to-json", help="convert schedule CSV tick,src_slot,dst_slot,len_bits to JSON")
     sc.add_argument("--csv", required=True)
     sc.add_argument("--out", required=True)
+    sc.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
     sc.add_argument("--compact-ticks", action="store_true", help="drop missing empty tick windows")
     sc.set_defaults(func=cmd_schedule_csv_to_json)
 
@@ -231,13 +261,35 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--mapping", default=None)
     an.add_argument("--kind", choices=["demands", "schedule"], default="demands")
     an.set_defaults(func=cmd_anonymize)
+
+    b = sub.add_parser("bench", help="run a synthetic ring benchmark without writing full schedules")
+    b.add_argument("--slots", type=int, default=64)
+    b.add_argument("--bits-per-edge", type=int, default=1048576)
+    b.add_argument("--bw", type=int, default=1048576)
+    b.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    b.add_argument("--outdir", default="artifacts/bench")
+    b.set_defaults(func=cmd_bench)
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        args = parser.parse_args(argv)
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("ERROR: interrupted", file=sys.stderr)
+        return 130
+    except (FileNotFoundError, ValueError, OSError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:  # pragma: no cover - defensive CLI boundary
+        import os
+        if os.environ.get("COPYSPACE_GUARD_DEBUG"):
+            raise
+        print(f"ERROR: unexpected failure: {e}", file=sys.stderr)
+        print("Set COPYSPACE_GUARD_DEBUG=1 to show a traceback.", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

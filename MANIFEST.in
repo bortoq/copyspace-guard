@@ -1,0 +1,6 @@
+include CHANGELOG.md
+recursive-include docs *.md *.svg
+recursive-include schemas *.json
+recursive-include examples *.csv *.yml
+recursive-include client-package *.md *.csv *.yml *.sh
+recursive-include tests *.py

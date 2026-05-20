@@ -24,7 +24,7 @@ Example:
 - candidate: 549 ticks;
 - saved: 219 ticks;
 - utilization: 71.43% → 99.92%;
-- gap: 50.00% → 7.23%.
+- gap: 39.89% → 0.00%.
 
 ## Slide 6 — ROI
 
@@ -59,7 +59,7 @@ Data Movement Savings Audit:
 - one workload;
 - report bundle;
 - CI gate;
-- a fixed-scope pilot fee fixed fee.
+- fixed-scope pilot fee.
 
 ## Slide 10 — Ask
 

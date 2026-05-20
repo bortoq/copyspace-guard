@@ -4,34 +4,22 @@ import math
 from typing import Any, Dict, List, Tuple
 
 from .io import demand_map, validate_instance
-from .types import Instance
+from .types import Instance, READ1_WRITE1, STRICT1
 
 DEFAULT_EXHAUSTIVE_SUBSET_LIMIT = 20
 
 
-def _chunk_edges(inst: Instance) -> Tuple[int, int, List[Tuple[int, int, int]]]:
+def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, int]]]:
     slots, bw, _ = validate_instance(inst)
+    model = str(inst.get("model", STRICT1))
     edges: List[Tuple[int, int, int]] = []
     for (s, t), bits in demand_map(inst).items():
         chunks = (bits + bw - 1) // bw
         edges.append((s, t, chunks))
-    return slots, bw, edges
+    return slots, bw, model, edges
 
 
-def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT) -> Dict[str, Any]:
-    """Return all implemented STRICT1 matching-capacity lower bounds.
-
-    For slots <= exhaustive_subset_limit, the density bound is computed over
-    every subset S with |S| >= 2:
-
-        ceil(internal_chunks(S) / floor(|S| / 2))
-
-    This is the complete family of simple matching-capacity lower bounds. It is
-    still a lower bound, not a proof of exact chromatic index for all graphs.
-    For larger slot counts, the function returns degree and full-graph capacity
-    bounds and marks bounds_complete=False.
-    """
-    slots, _bw, edges = _chunk_edges(inst)
+def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_subset_limit: int) -> Dict[str, Any]:
     total_chunks = sum(c for _s, _t, c in edges)
     deg = [0] * slots
     for s, t, c in edges:
@@ -40,7 +28,6 @@ def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEF
     degree_lb = max(deg) if deg else 0
     tick_capacity = slots // 2
     capacity_lb = math.ceil(total_chunks / tick_capacity) if tick_capacity > 0 else 0
-
     density_lb = capacity_lb
     witness: Dict[str, Any] = {
         "kind": "full_graph_capacity",
@@ -51,13 +38,10 @@ def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEF
     bounds_complete = slots <= exhaustive_subset_limit
 
     if bounds_complete and slots >= 2:
-        # Weighted adjacency for undirected internal-edge counting.
         w = [[0] * slots for _ in range(slots)]
         for s, t, c in edges:
-            a, b = (s, t) if s < t else (t, s)
-            w[a][b] += c
-            w[b][a] += c
-
+            w[s][t] += c
+            w[t][s] += c
         internal = [0] * (1 << slots)
         for mask in range(1, 1 << slots):
             lowbit = mask & -mask
@@ -98,6 +82,49 @@ def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEF
         "bounds_complete": bounds_complete,
         "exhaustive_subset_limit": exhaustive_subset_limit,
     }
+
+
+def _read1_write1_bounds(slots: int, edges: List[Tuple[int, int, int]]) -> Dict[str, Any]:
+    total_chunks = sum(c for _s, _t, c in edges)
+    out_deg = [0] * slots
+    in_deg = [0] * slots
+    for s, t, c in edges:
+        out_deg[s] += c
+        in_deg[t] += c
+    degree_lb = max(out_deg + in_deg) if slots else 0
+    tick_capacity = slots
+    capacity_lb = math.ceil(total_chunks / tick_capacity) if tick_capacity > 0 else 0
+    lower = max(degree_lb, capacity_lb)
+    witness = {
+        "kind": "directed_read_write_capacity",
+        "slots": slots,
+        "total_chunks": total_chunks,
+        "tick_capacity_chunks": tick_capacity,
+        "max_out_degree_chunks": max(out_deg) if out_deg else 0,
+        "max_in_degree_chunks": max(in_deg) if in_deg else 0,
+    }
+    return {
+        "degree_lower_bound": degree_lb,
+        "capacity_lower_bound": capacity_lb,
+        "density_lower_bound": capacity_lb,
+        "lower_bound_ticks": lower,
+        "total_chunks": total_chunks,
+        "tick_capacity_chunks": tick_capacity,
+        "lower_bound_witness": witness,
+        "bounds_complete": True,
+        "exhaustive_subset_limit": None,
+    }
+
+
+def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT) -> Dict[str, Any]:
+    """Return deterministic lower bounds for the instance model."""
+    slots, _bw, model, edges = _chunk_edges(inst)
+    if model == READ1_WRITE1:
+        out = _read1_write1_bounds(slots, edges)
+    else:
+        out = _strict1_bounds(slots, edges, exhaustive_subset_limit)
+    out["model"] = model
+    return out
 
 
 def lower_bound_ticks(inst: Instance) -> int:

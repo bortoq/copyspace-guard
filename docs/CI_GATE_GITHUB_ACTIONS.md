@@ -1,6 +1,6 @@
 # CI gate example — GitHub Actions
 
-This example fails a build when the optimized schedule exceeds an agreed gap threshold.
+This example fails a build when the candidate schedule exceeds an agreed gap threshold.
 
 ```yaml
 name: copyspace-guard
@@ -15,26 +15,20 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install Copy-Space Guard
-        run: python -m pip install -e ./copyspace-guard
+        run: python -m pip install -e .
       - name: Analyze transfer demands
         run: |
           copyspace-guard analyze \
             --csv workloads/transfer_demands.csv \
             --bw 1048576 \
+            --summary-only \
             --outdir artifacts/copyspace
       - name: Enforce regression threshold
         run: |
-          python - <<'PY'
-          import json, sys
-          s = json.load(open('artifacts/copyspace/summary.json'))
-          r = s['reports']['greedy']
-          if r['status'] != 'PASS':
-              raise SystemExit('schedule validation failed')
-          if r['gap_to_lower_bound'] > 0.15:
-              raise SystemExit(f"gap too high: {r['gap_to_lower_bound']}")
-          if r['utilization'] < 0.85:
-              raise SystemExit(f"utilization too low: {r['utilization']}")
-          PY
+          copyspace-guard gate artifacts/copyspace/summary.json \
+            --report greedy \
+            --max-gap 0.15 \
+            --min-utilization 0.85
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -42,16 +36,9 @@ jobs:
           path: artifacts/copyspace
 ```
 
-
-## Local gate command
-
-The MVP also includes a built-in gate command:
+For repository-local thresholds, use a config file:
 
 ```bash
 copyspace-guard gate artifacts/copyspace/summary.json \
-  --report greedy \
-  --max-gap 0.15 \
-  --min-utilization 0.85
+  --config examples/copyspace_guard.yml
 ```
-
-Use `--report current` to gate the customer/current schedule instead of the candidate.

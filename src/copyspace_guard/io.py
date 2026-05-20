@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Tuple
 
-from .types import Chunk, Demand, Instance, MODEL, Schedule
+from .types import Chunk, Demand, Instance, MODEL, MODELS, Schedule
 
 
 def load_json(path: str | Path) -> Any:
@@ -53,7 +53,10 @@ def instance_from_csv(
     slots: int | None = None,
     instance_id: str | None = None,
     notes: str | None = None,
+    model: str = MODEL,
 ) -> Instance:
+    if model not in MODELS:
+        raise ValueError(f"unsupported model: {model}")
     if bw <= 0:
         raise ValueError("copy bandwidth per tick must be > 0")
     rows = read_demands_csv(path)
@@ -72,7 +75,7 @@ def instance_from_csv(
         merged[(s, t)] = merged.get((s, t), 0) + bits
     inst: Instance = {
         "version": 0,
-        "model": MODEL,
+        "model": model,
         "slots": slots2,
         "copy_bw_bits_per_tick": bw,
         "demands": [
@@ -103,8 +106,8 @@ def validate_instance(inst: Instance) -> Tuple[int, int, List[Demand]]:
         raise ValueError("instance must be an object")
     if inst.get("version") != 0:
         raise ValueError("instance.version must be 0")
-    if inst.get("model") != MODEL:
-        raise ValueError(f'instance.model must be "{MODEL}"')
+    if inst.get("model") not in MODELS:
+        raise ValueError(f"instance.model must be one of {sorted(MODELS)}")
     slots = inst.get("slots")
     bw = inst.get("copy_bw_bits_per_tick")
     if not isinstance(slots, int) or slots <= 0:
@@ -180,8 +183,10 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
         yield current_chunks
 
 
-def schedule_from_csv(path: str | Path, *, fill_empty_ticks: bool = True) -> Schedule:
-    return {"version": 0, "model": MODEL, "ticks": list(iter_schedule_csv_ticks(path, fill_empty_ticks=fill_empty_ticks))}
+def schedule_from_csv(path: str | Path, *, fill_empty_ticks: bool = True, model: str = MODEL) -> Schedule:
+    if model not in MODELS:
+        raise ValueError(f"unsupported model: {model}")
+    return {"version": 0, "model": model, "ticks": list(iter_schedule_csv_ticks(path, fill_empty_ticks=fill_empty_ticks))}
 
 
 def write_schedule_csv(path: str | Path, sched: Schedule) -> None:

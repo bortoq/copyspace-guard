@@ -4,7 +4,7 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 from .bounds import lower_bound_components
 from .io import demand_map, iter_schedule_csv_ticks, validate_instance
-from .types import Chunk, Instance, MODEL, Report, Schedule
+from .types import Chunk, Instance, MODEL, READ1_WRITE1, Report, Schedule
 
 
 def fail_report(kind: str, msg: str, **ctx: Any) -> Report:
@@ -20,7 +20,9 @@ def _final_report(inst: Instance, ticks_total: int, bits_total: int, errors: Lis
     except Exception as e:
         return fail_report("INSTANCE", str(e))
     bits_per_tick = bits_total / ticks_total if ticks_total > 0 else 0.0
-    expected_bits_per_tick = (slots // 2) * bw
+    model = str(inst.get("model", MODEL))
+    expected_chunks_per_tick = slots if model == READ1_WRITE1 else (slots // 2)
+    expected_bits_per_tick = expected_chunks_per_tick * bw
     utilization = bits_per_tick / expected_bits_per_tick if expected_bits_per_tick else 0.0
     lb = int(lbs["lower_bound_ticks"])
     gap = ticks_total - lb if not errors else 0
@@ -28,7 +30,7 @@ def _final_report(inst: Instance, ticks_total: int, bits_total: int, errors: Lis
     return Report(
         status="FAIL" if errors else "PASS",
         version=0,
-        model=MODEL,
+        model=model,
         errors=errors,
         ticks_total=ticks_total,
         bits_total=bits_total,
@@ -52,6 +54,7 @@ def validate_ticks_iter(inst: Instance, ticks: Iterable[List[Chunk]]) -> Report:
         slots, bw, _demands = validate_instance(inst)
     except Exception as e:
         return fail_report("INSTANCE", str(e))
+    model = str(inst.get("model", MODEL))
 
     errors: List[Dict[str, Any]] = []
     scheduled: Dict[Tuple[int, int], int] = {}
@@ -69,12 +72,14 @@ def validate_ticks_iter(inst: Instance, ticks: Iterable[List[Chunk]]) -> Report:
             add_error("STRUCT", "tick must be a list", tick=ti)
             continue
         used = set()
+        used_src = set()
+        used_dst = set()
         for ci, ch in enumerate(tick):
             if not isinstance(ch, dict):
                 add_error("STRUCT", "chunk must be an object", tick=ti, chunk=ci)
                 continue
             try:
-                s, t, l = int(ch["src_slot"]), int(ch["dst_slot"]), int(ch["len_bits"])
+                s, t, length = int(ch["src_slot"]), int(ch["dst_slot"]), int(ch["len_bits"])
             except Exception:
                 add_error("STRUCT", "chunk must contain integer src_slot,dst_slot,len_bits", tick=ti, chunk=ci)
                 continue
@@ -86,23 +91,41 @@ def validate_ticks_iter(inst: Instance, ticks: Iterable[List[Chunk]]) -> Report:
             if s == t:
                 add_error("STRUCT", "src_slot == dst_slot", tick=ti, chunk=ci, slot=s)
                 chunk_valid = False
-            if l <= 0 or l > bw:
-                add_error("BANDWIDTH", "len_bits out of allowed range", tick=ti, chunk=ci, len_bits=l, bw=bw)
+            if length <= 0 or length > bw:
+                add_error("BANDWIDTH", "len_bits out of allowed range", tick=ti, chunk=ci, len_bits=length, bw=bw)
                 chunk_valid = False
-            if s in used or t in used:
-                add_error("STRICT1", "slot participates more than once in one tick", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
-                chunk_valid = False
+            if model == READ1_WRITE1:
+                if s in used_src:
+                    add_error("READ1_WRITE1", "source slot sends more than once in one tick", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
+                    chunk_valid = False
+                if t in used_dst:
+                    add_error("READ1_WRITE1", "destination slot receives more than once in one tick", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
+                    chunk_valid = False
+            else:
+                if s in used or t in used:
+                    add_error("STRICT1", "slot participates more than once in one tick", tick=ti, chunk=ci, src_slot=s, dst_slot=t)
+                    chunk_valid = False
 
             if chunk_valid:
-                used.add(s)
-                used.add(t)
-                scheduled[(s, t)] = scheduled.get((s, t), 0) + l
-                bits_total += l
-            else:
-                if 0 <= s < slots:
+                if model == READ1_WRITE1:
+                    used_src.add(s)
+                    used_dst.add(t)
+                else:
                     used.add(s)
-                if 0 <= t < slots:
                     used.add(t)
+                scheduled[(s, t)] = scheduled.get((s, t), 0) + length
+                bits_total += length
+            else:
+                if model == READ1_WRITE1:
+                    if 0 <= s < slots:
+                        used_src.add(s)
+                    if 0 <= t < slots:
+                        used_dst.add(t)
+                else:
+                    if 0 <= s < slots:
+                        used.add(s)
+                    if 0 <= t < slots:
+                        used.add(t)
 
     try:
         dm = demand_map(inst)
@@ -133,8 +156,9 @@ def validate_schedule(inst: Instance, sched: Schedule) -> Report:
         return fail_report("STRUCT", "schedule must be an object")
     if sched.get("version") != 0:
         return fail_report("STRUCT", "schedule.version must be 0")
-    if sched.get("model") != MODEL:
-        return fail_report("STRUCT", f'schedule.model must be "{MODEL}"')
+    expected_model = str(inst.get("model", MODEL))
+    if sched.get("model") != expected_model:
+        return fail_report("STRUCT", f'schedule.model must match instance.model "{expected_model}"')
     ticks = sched.get("ticks")
     if not isinstance(ticks, list):
         return fail_report("STRUCT", "schedule.ticks must be a list")

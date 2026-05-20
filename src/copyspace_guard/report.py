@@ -72,6 +72,15 @@ Assumption source: `roi` config in `summary.json`. Treat this as a first-pass es
 """
 
 
+def bounds_warning_section(current: Report, candidate: Report) -> str:
+    if current.bounds_complete and candidate.bounds_complete:
+        return ""
+    return """## Bound completeness warning
+
+At least one schedule report was produced with partial lower-bound enumeration. For large slot counts, subset-density bounds are not exhaustively enumerated by default, so the true optimum may be higher than the reported lower bound and the reported gap may be understated.
+"""
+
+
 def render_markdown(summary: Dict[str, Any]) -> str:
     inst = summary["instance"]
     current_label, candidate_label, cur, cand = _labels(summary)
@@ -107,13 +116,15 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 
 {roi_section(summary)}
 
+{bounds_warning_section(cur, cand)}
+
 ## Commercial interpretation
 
 - `degree_lower_bound` is derived from endpoint pressure.
 - `capacity_lower_bound` is derived from total chunks divided by full-graph per-tick matching capacity.
 - `density_lower_bound` is derived from all subset matching-capacity constraints when the slot count is within the exhaustive limit.
 - `lower_bound_ticks` is the maximum of currently implemented deterministic lower bounds.
-- `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared STRICT1 model.
+- `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared `{inst['model']}` model.
 - A positive saved-ticks number is potential time/capacity savings per workload run before deeper topology-specific modeling.
 - The tool is metadata-only: it requires transfer demand metadata, not payload data.
 - The CI gate can prevent future schedule regressions after scheduler, storage, ETL or infrastructure changes.
@@ -121,7 +132,7 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 ## Recommended next step
 
 1. Replace the demo demand CSV with one real trace from the target system.
-2. Confirm whether STRICT1 matches the system constraints or extend the model.
+2. Confirm whether `{inst['model']}` matches the system constraints or extend the model.
 3. Add this report as a CI regression gate: fail if `ticks_total`, `gap_to_lower_bound`, or utilization regress beyond agreed thresholds.
 4. If savings are material, build a customer-specific importer and compare the customer's scheduler against multiple candidate strategies.
 
@@ -191,21 +202,26 @@ def render_html(summary: Dict[str, Any]) -> str:
             continue
         flush_table()
         if line.startswith("# "):
-            flush_ul(); body.append(f"<h1>{html.escape(line[2:])}</h1>")
+            flush_ul()
+            body.append(f"<h1>{html.escape(line[2:])}</h1>")
         elif line.startswith("## "):
-            flush_ul(); body.append(f"<h2>{html.escape(line[3:])}</h2>")
+            flush_ul()
+            body.append(f"<h2>{html.escape(line[3:])}</h2>")
         elif line.startswith("- "):
             if not in_ul:
-                body.append("<ul>"); in_ul = True
+                body.append("<ul>")
+                in_ul = True
             text = html.escape(line[2:]).replace("**", "")
             body.append(f"<li>{text}</li>")
         elif not line.strip():
-            flush_ul(); body.append("")
+            flush_ul()
+            body.append("")
         else:
             flush_ul()
             text = html.escape(line).replace("**", "")
             body.append(f"<p>{text}</p>")
-    flush_ul(); flush_table()
+    flush_ul()
+    flush_table()
     return f"""<!doctype html>
 <html lang="en">
 <head>
