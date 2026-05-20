@@ -28,6 +28,7 @@ jobs:
           coverage report --fail-under=80
       - name: CLI smoke
         run: |
+          copyspace-guard doctor --root .
           copyspace-guard analyze \
             --csv examples/ring15.csv \
             --bw 256 \

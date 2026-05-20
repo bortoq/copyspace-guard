@@ -3,8 +3,8 @@
 Before tagging a release:
 
 1. Run `make test`.
-2. Run `python -m build --no-isolation`.
-3. Run JSON schema validation against generated demo artifacts.
+2. Run `make pilot-check`.
+3. Run `make build`.
 4. Build Docker image.
 5. Run Docker smoke test.
 6. Regenerate demo report.

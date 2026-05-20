@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 import time
 
+from . import __version__
 from .core import (
     anonymize_demands_csv,
     anonymize_schedule_csv,
@@ -245,8 +246,57 @@ def cmd_bench(args: argparse.Namespace) -> int:
     return 0 if rep_baseline.status == "PASS" and rep_greedy.status == "PASS" else 2
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    checks: list[tuple[str, bool, str]] = []
+    required_paths = [
+        "README.md",
+        "pyproject.toml",
+        "schemas/instance_v0.schema.json",
+        "schemas/report_v0.schema.json",
+        "schemas/schedule_v0.schema.json",
+        "schemas/summary_v0.schema.json",
+        "examples/ring15.csv",
+        "examples/roi.yml",
+        "client-package/README_CLIENT.md",
+    ]
+    for rel in required_paths:
+        ok = (root / rel).exists()
+        checks.append((f"path:{rel}", ok, "found" if ok else "missing"))
+
+    try:
+        inst = instance_from_csv(root / "examples" / "ring15.csv", bw=256)
+        rep = validate_ticks_iter(inst, iter_greedy(inst))
+        checks.append(("demo:greedy-validation", rep.status == "PASS", f"status={rep.status} ticks={rep.ticks_total}"))
+    except Exception as e:
+        checks.append(("demo:greedy-validation", False, str(e)))
+
+    for kind, rel in [
+        ("instance", "schemas/instance_v0.schema.json"),
+        ("report", "schemas/report_v0.schema.json"),
+        ("schedule", "schemas/schedule_v0.schema.json"),
+        ("summary", "schemas/summary_v0.schema.json"),
+    ]:
+        try:
+            load_json(root / rel)
+            checks.append((f"schema-json:{kind}", True, "valid JSON"))
+        except Exception as e:
+            checks.append((f"schema-json:{kind}", False, str(e)))
+
+    failed = [(name, detail) for name, ok, detail in checks if not ok]
+    for name, ok, detail in checks:
+        status = "OK" if ok else "FAIL"
+        print(f"{status} {name} {detail}")
+    if failed:
+        print(f"doctor failed: {len(failed)} check(s) failed", file=sys.stderr)
+        return 1
+    print(f"doctor passed: {len(checks)} checks")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="copyspace-guard", description="Deterministic data-movement audit and CI gate")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     a = sub.add_parser("analyze", help="run current/baseline vs deterministic candidate analysis from demands CSV")
@@ -318,6 +368,10 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
     b.add_argument("--outdir", default="artifacts/bench")
     b.set_defaults(func=cmd_bench)
+
+    d = sub.add_parser("doctor", help="check local pilot installation and bundled demo assets")
+    d.add_argument("--root", default=".", help="project/client package root to check")
+    d.set_defaults(func=cmd_doctor)
     return p
 
 

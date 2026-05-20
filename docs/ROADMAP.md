@@ -13,6 +13,8 @@
 - JSON schemas for v0 artifacts.
 - Runtime artifact contract validation.
 - Basic guardrails for large CI runs.
+- Local `doctor` command and `make pilot-check`.
+- Pilot readiness checklist.
 
 ## v0.2 — Pilot hardening
 

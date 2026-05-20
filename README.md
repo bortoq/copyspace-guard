@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Status: early pilot / v0.1.
+**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Status: pilot-grade / v0.1.
 
 It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a declared resource model, compares a baseline or customer schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
 
@@ -89,6 +89,13 @@ This is a useful baseline for:
 It is not a universal network model. For real pilots, confirm whether the client needs extensions such as READ1_WRITE1, broadcast, topology-aware bandwidth, asymmetric links or tier-aware storage constraints.
 
 ## Commands
+
+### Check local pilot readiness
+
+```bash
+copyspace-guard --version
+copyspace-guard doctor --root .
+```
 
 ### Analyze CSV and generate reports
 
@@ -331,6 +338,7 @@ Large workloads can use `--summary-only` to avoid writing full schedule JSON/CSV
 - Lower-bound definitions: `docs/BOUNDS.md`
 - JSON schemas: `docs/SCHEMAS.md`
 - Performance notes: `docs/PERFORMANCE.md`
+- Pilot readiness: `docs/PILOT_READINESS.md`
 - Threat model: `docs/THREAT_MODEL.md`
 - Data handling: `docs/DATA_HANDLING.md`
 - Changelog: `CHANGELOG.md`

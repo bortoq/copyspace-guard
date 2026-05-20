@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.1.0-alpha — 2026-05-20
+## v0.1.0-pilot — 2026-05-20
 
-Initial public pilot release.
+Pilot-grade release.
 
 Highlights:
 
@@ -19,8 +19,13 @@ Highlights:
 Hardening updates:
 
 - Runtime artifact contract validation command.
+- Local `doctor` command and version output for pilot support.
+- `make pilot-check` for repeatable pilot smoke validation.
 - Validation error caps with `total_errors` and truncation metadata.
 - Analyze guardrails for slots, demands and output ticks.
 - Reusable anonymization mapping input.
 - Small-instance exact solver regression oracle.
 - Wheel-install and Docker smoke checks in CI.
+- Report artifact schema and package typing marker.
+- Partner-facing material moved under `doc/partners/`.
+- `copyspace-guard doctor --root .` and `make pilot-check` define the repeatable pilot-readiness smoke path.

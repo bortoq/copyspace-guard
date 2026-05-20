@@ -17,6 +17,16 @@ def run_cli(*args, check=True):
 
 
 class CliTests(unittest.TestCase):
+    def test_version_command(self):
+        rc = run_cli("--version")
+        self.assertEqual(rc.returncode, 0)
+        self.assertIn("copyspace-guard", rc.stdout)
+
+    def test_doctor_command(self):
+        rc = run_cli("doctor", "--root", str(ROOT))
+        self.assertEqual(rc.returncode, 0)
+        self.assertIn("doctor passed", rc.stdout)
+
     def test_summary_only_does_not_emit_schedules(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"
