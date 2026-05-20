@@ -12,12 +12,6 @@ license = {text = "Apache-2.0"}
 authors = [{name = "Copy-Space Guard"}]
 dependencies = []
 
-[project.scripts]
-copyspace-guard = "copyspace_guard.cli:main"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
@@ -27,3 +21,10 @@ classifiers = [
   "Topic :: System :: Benchmark",
   "Topic :: Software Development :: Quality Assurance",
 ]
+
+[project.scripts]
+copyspace-guard = "copyspace_guard.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
