@@ -29,6 +29,7 @@ jobs:
       - name: CLI smoke
         run: |
           copyspace-guard doctor --root .
+          copyspace-guard doctor --root . --json
           copyspace-guard analyze \
             --csv examples/ring15.csv \
             --bw 256 \
@@ -45,6 +46,8 @@ jobs:
             --model READ1_WRITE1 \
             --summary-only \
             --outdir artifacts/ci-readwrite
+      - name: Performance smoke
+        run: copyspace-guard bench-suite --outdir artifacts/ci-bench-suite --max-total-seconds 30
 
   build:
     runs-on: ubuntu-latest

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 import time
+from typing import Any, cast
 
 from . import __version__
 from .core import (
@@ -220,35 +222,120 @@ def cmd_anonymize(args: argparse.Namespace) -> int:
 
 
 def cmd_bench(args: argparse.Namespace) -> int:
+    result = run_synthetic_bench(
+        slots=args.slots,
+        bits_per_edge=args.bits_per_edge,
+        bw=args.bw,
+        model=args.model,
+        outdir=Path(args.outdir),
+        write_demands=True,
+    )
+    print(
+        "bench "
+        f"elapsed={float(result['elapsed_seconds']):.6f}s "
+        f"slots={result['slots']} model={result['model']} "
+        f"baseline_ticks={cast(dict[str, Any], result['baseline'])['ticks_total']} "
+        f"greedy_ticks={cast(dict[str, Any], result['greedy'])['ticks_total']}"
+    )
+    baseline = cast(dict[str, Any], result["baseline"])
+    greedy = cast(dict[str, Any], result["greedy"])
+    return 0 if baseline["status"] == "PASS" and greedy["status"] == "PASS" else 2
+
+
+def run_synthetic_bench(
+    *,
+    slots: int,
+    bits_per_edge: int,
+    bw: int,
+    model: str,
+    outdir: Path,
+    write_demands: bool,
+) -> dict[str, Any]:
     rows = ["src_slot,dst_slot,bits_total"]
-    for i in range(args.slots):
-        rows.append(f"{i},{(i + 1) % args.slots},{args.bits_per_edge}")
-    outdir = Path(args.outdir)
+    for i in range(slots):
+        rows.append(f"{i},{(i + 1) % slots},{bits_per_edge}")
     outdir.mkdir(parents=True, exist_ok=True)
     demands = outdir / "bench_demands.csv"
-    demands.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    if write_demands:
+        demands.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    else:
+        demands = outdir / f"bench_{model.lower()}_{slots}.csv"
+        demands.write_text("\n".join(rows) + "\n", encoding="utf-8")
     t0 = time.perf_counter()
-    inst = instance_from_csv(demands, bw=args.bw, model=args.model)
+    inst = instance_from_csv(demands, bw=bw, model=model)
     rep_baseline = validate_ticks_iter(inst, iter_baseline(inst))
     rep_greedy = validate_ticks_iter(inst, iter_greedy(inst))
     elapsed = time.perf_counter() - t0
-    result = {
-        "slots": args.slots,
-        "bits_per_edge": args.bits_per_edge,
-        "bw": args.bw,
-        "model": args.model,
+    result: dict[str, Any] = {
+        "slots": slots,
+        "bits_per_edge": bits_per_edge,
+        "bw": bw,
+        "model": model,
         "elapsed_seconds": elapsed,
         "baseline": rep_baseline.to_dict(),
         "greedy": rep_greedy.to_dict(),
     }
     dump_json(outdir / "bench.json", result)
-    print(f"bench elapsed={elapsed:.6f}s slots={args.slots} model={args.model} baseline_ticks={rep_baseline.ticks_total} greedy_ticks={rep_greedy.ticks_total}")
-    return 0 if rep_baseline.status == "PASS" and rep_greedy.status == "PASS" else 2
+    return result
 
 
-def cmd_doctor(args: argparse.Namespace) -> int:
-    root = Path(args.root).resolve()
-    checks: list[tuple[str, bool, str]] = []
+def cmd_bench_suite(args: argparse.Namespace) -> int:
+    outdir = Path(args.outdir)
+    cases: list[dict[str, Any]] = [
+        {"name": "strict1-ring32", "slots": 32, "bits_per_edge": 1048576, "bw": 1048576, "model": "STRICT1"},
+        {"name": "strict1-ring128", "slots": 128, "bits_per_edge": 1048576, "bw": 1048576, "model": "STRICT1"},
+        {"name": "read1-write1-ring128", "slots": 128, "bits_per_edge": 1048576, "bw": 1048576, "model": "READ1_WRITE1"},
+    ]
+    results: list[dict[str, Any]] = []
+    suite_start = time.perf_counter()
+    for case in cases:
+        case_dir = outdir / str(case["name"])
+        result = run_synthetic_bench(
+            slots=int(case["slots"]),
+            bits_per_edge=int(case["bits_per_edge"]),
+            bw=int(case["bw"]),
+            model=str(case["model"]),
+            outdir=case_dir,
+            write_demands=False,
+        )
+        result["name"] = case["name"]
+        results.append(result)
+    total_elapsed = time.perf_counter() - suite_start
+    failures: list[str] = []
+    for result in results:
+        name = str(result["name"])
+        elapsed = float(result["elapsed_seconds"])
+        baseline = cast(dict[str, Any], result["baseline"])
+        greedy = cast(dict[str, Any], result["greedy"])
+        if baseline["status"] != "PASS" or greedy["status"] != "PASS":
+            failures.append(f"{name}: validation failed")
+        if args.max_case_seconds is not None and elapsed > args.max_case_seconds:
+            failures.append(f"{name}: elapsed {elapsed:.6f}s exceeds --max-case-seconds {args.max_case_seconds}")
+    if args.max_total_seconds is not None and total_elapsed > args.max_total_seconds:
+        failures.append(f"total elapsed {total_elapsed:.6f}s exceeds --max-total-seconds {args.max_total_seconds}")
+    suite = {
+        "version": 0,
+        "elapsed_seconds": total_elapsed,
+        "case_count": len(results),
+        "failures": failures,
+        "cases": results,
+    }
+    outdir.mkdir(parents=True, exist_ok=True)
+    dump_json(outdir / "bench_suite.json", suite)
+    print(f"bench-suite elapsed={total_elapsed:.6f}s cases={len(results)} failures={len(failures)}")
+    for result in results:
+        greedy = cast(dict[str, Any], result["greedy"])
+        print(f"- {result['name']} elapsed={float(result['elapsed_seconds']):.6f}s greedy_ticks={greedy['ticks_total']}")
+    if failures:
+        for failure in failures:
+            print(f"FAIL {failure}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def doctor_checks(root: Path) -> list[dict[str, object]]:
+    root = root.resolve()
+    checks: list[dict[str, object]] = []
     required_paths = [
         "README.md",
         "pyproject.toml",
@@ -262,14 +349,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ]
     for rel in required_paths:
         ok = (root / rel).exists()
-        checks.append((f"path:{rel}", ok, "found" if ok else "missing"))
+        checks.append({"name": f"path:{rel}", "ok": ok, "detail": "found" if ok else "missing"})
 
     try:
         inst = instance_from_csv(root / "examples" / "ring15.csv", bw=256)
         rep = validate_ticks_iter(inst, iter_greedy(inst))
-        checks.append(("demo:greedy-validation", rep.status == "PASS", f"status={rep.status} ticks={rep.ticks_total}"))
+        checks.append({"name": "demo:greedy-validation", "ok": rep.status == "PASS", "detail": f"status={rep.status} ticks={rep.ticks_total}"})
     except Exception as e:
-        checks.append(("demo:greedy-validation", False, str(e)))
+        checks.append({"name": "demo:greedy-validation", "ok": False, "detail": str(e)})
 
     for kind, rel in [
         ("instance", "schemas/instance_v0.schema.json"),
@@ -279,14 +366,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ]:
         try:
             load_json(root / rel)
-            checks.append((f"schema-json:{kind}", True, "valid JSON"))
+            checks.append({"name": f"schema-json:{kind}", "ok": True, "detail": "valid JSON"})
         except Exception as e:
-            checks.append((f"schema-json:{kind}", False, str(e)))
+            checks.append({"name": f"schema-json:{kind}", "ok": False, "detail": str(e)})
+    return checks
 
-    failed = [(name, detail) for name, ok, detail in checks if not ok]
-    for name, ok, detail in checks:
-        status = "OK" if ok else "FAIL"
-        print(f"{status} {name} {detail}")
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    checks = doctor_checks(root)
+    failed = [check for check in checks if not check["ok"]]
+    if args.json:
+        print(json.dumps({"status": "FAIL" if failed else "PASS", "root": str(root), "checks": checks}, indent=2, sort_keys=True))
+        return 1 if failed else 0
+    for check in checks:
+        status = "OK" if check["ok"] else "FAIL"
+        print(f"{status} {check['name']} {check['detail']}")
     if failed:
         print(f"doctor failed: {len(failed)} check(s) failed", file=sys.stderr)
         return 1
@@ -369,8 +464,15 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--outdir", default="artifacts/bench")
     b.set_defaults(func=cmd_bench)
 
+    bs = sub.add_parser("bench-suite", help="run production-oriented synthetic performance smoke suite")
+    bs.add_argument("--outdir", default="artifacts/bench-suite")
+    bs.add_argument("--max-case-seconds", type=float, default=None)
+    bs.add_argument("--max-total-seconds", type=float, default=None)
+    bs.set_defaults(func=cmd_bench_suite)
+
     d = sub.add_parser("doctor", help="check local pilot installation and bundled demo assets")
     d.add_argument("--root", default=".", help="project/client package root to check")
+    d.add_argument("--json", action="store_true", help="emit machine-readable check results")
     d.set_defaults(func=cmd_doctor)
     return p
 

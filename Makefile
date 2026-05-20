@@ -1,4 +1,4 @@
-.PHONY: demo test pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench
+.PHONY: demo test pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench bench-suite production-check
 
 demo:
 	copyspace-guard analyze --csv examples/ring15.csv --bw 256 --roi examples/roi.yml --outdir artifacts/demo
@@ -14,12 +14,18 @@ test:
 
 pilot-check:
 	copyspace-guard doctor --root .
+	copyspace-guard doctor --root . --json
 	copyspace-guard analyze --csv examples/ring15.csv --bw 256 --roi examples/roi.yml --summary-only --outdir /tmp/copyspace-guard-pilot
 	copyspace-guard validate-artifact --kind summary /tmp/copyspace-guard-pilot/summary.json
 	copyspace-guard gate /tmp/copyspace-guard-pilot/summary.json --config examples/copyspace_guard.yml
 
 bench:
 	copyspace-guard bench --slots 64 --bits-per-edge 1048576 --bw 1048576 --outdir artifacts/bench
+
+bench-suite:
+	copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
+
+production-check: release-check bench-suite
 
 build:
 	python -m pip install -e ".[dev]"

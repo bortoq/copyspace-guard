@@ -23,7 +23,7 @@ jobs:
         run: python -m pip install -e ".[dev]"
 
       - name: Release checks
-        run: make release-check
+        run: make production-check
 
       - name: Docker smoke
         run: |

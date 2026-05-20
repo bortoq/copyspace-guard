@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Status: pilot-grade / v0.1.
+**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Status: production-oriented pilot / v0.2.
 
 It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a declared resource model, compares a baseline or customer schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
 
@@ -95,6 +95,7 @@ It is not a universal network model. For real pilots, confirm whether the client
 ```bash
 copyspace-guard --version
 copyspace-guard doctor --root .
+copyspace-guard doctor --root . --json
 ```
 
 ### Analyze CSV and generate reports
@@ -136,6 +137,18 @@ copyspace-guard report artifacts/run/summary.json --outdir artifacts/report
 
 ```bash
 copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
+```
+
+### Run production-oriented checks
+
+```bash
+make production-check
+```
+
+This runs release checks plus a small synthetic performance suite. The suite can also be run directly:
+
+```bash
+copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
 ```
 
 
@@ -192,7 +205,7 @@ Exit code `0` means pass, exit code `2` means fail.
 - `report.md` — human-readable audit report.
 - `report.html` — shareable report for demos and sales calls.
 
-## v0.1 boundaries
+## v0.2 boundaries
 
 Included:
 
@@ -337,8 +350,11 @@ Large workloads can use `--summary-only` to avoid writing full schedule JSON/CSV
 - Model limitations: `docs/MODEL_LIMITATIONS.md`
 - Lower-bound definitions: `docs/BOUNDS.md`
 - JSON schemas: `docs/SCHEMAS.md`
+- Artifact contracts: `docs/ARTIFACT_CONTRACTS.md`
 - Performance notes: `docs/PERFORMANCE.md`
 - Pilot readiness: `docs/PILOT_READINESS.md`
+- Production readiness: `docs/PRODUCTION_READINESS.md`
+- Operations guide: `docs/OPERATIONS.md`
 - Release process: `docs/RELEASE_PROCESS.md`
 - Threat model: `docs/THREAT_MODEL.md`
 - Data handling: `docs/DATA_HANDLING.md`

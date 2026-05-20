@@ -27,6 +27,13 @@ class CliTests(unittest.TestCase):
         self.assertEqual(rc.returncode, 0)
         self.assertIn("doctor passed", rc.stdout)
 
+    def test_doctor_json_command(self):
+        rc = run_cli("doctor", "--root", str(ROOT), "--json")
+        self.assertEqual(rc.returncode, 0)
+        data = json.loads(rc.stdout)
+        self.assertEqual(data["status"], "PASS")
+        self.assertGreaterEqual(len(data["checks"]), 1)
+
     def test_summary_only_does_not_emit_schedules(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"
@@ -72,6 +79,26 @@ class CliTests(unittest.TestCase):
             run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--summary-only", "--outdir", str(out))
             rc = run_cli("validate-artifact", "--kind", "summary", str(out / "summary.json"))
             self.assertEqual(rc.returncode, 0)
+
+    def test_ring15_summary_golden_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--roi", "examples/roi.yml", "--summary-only", "--outdir", str(out))
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            golden = json.loads((ROOT / "tests" / "golden" / "ring15_summary_subset.json").read_text(encoding="utf-8"))
+            actual = {
+                "current_label": data["current_label"],
+                "candidate_label": data["candidate_label"],
+                "model": data["instance"]["model"],
+                "slots": data["instance"]["slots"],
+                "baseline_ticks": data["reports"]["baseline"]["ticks_total"],
+                "greedy_ticks": data["reports"]["greedy"]["ticks_total"],
+                "greedy_lower_bound_ticks": data["reports"]["greedy"]["lower_bound_ticks"],
+                "greedy_gap_ticks": data["reports"]["greedy"]["gap_ticks"],
+                "saved_ticks": data["comparison"]["saved_ticks"],
+                "artifacts": data["artifacts"],
+            }
+            self.assertEqual(actual, golden)
 
     def test_guardrails_fail_cleanly(self):
         with tempfile.TemporaryDirectory() as td:
@@ -136,3 +163,11 @@ class CliErrorTests(unittest.TestCase):
             rc = run_cli("bench", "--slots", "8", "--bits-per-edge", "1024", "--bw", "256", "--outdir", td)
             self.assertEqual(rc.returncode, 0)
             self.assertTrue((Path(td) / "bench.json").exists())
+
+    def test_bench_suite_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc = run_cli("bench-suite", "--outdir", td, "--max-total-seconds", "30")
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads((Path(td) / "bench_suite.json").read_text(encoding="utf-8"))
+            self.assertEqual(data["case_count"], 3)
+            self.assertEqual(data["failures"], [])

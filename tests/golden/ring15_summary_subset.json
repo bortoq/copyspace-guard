@@ -1,0 +1,22 @@
+{
+  "artifacts": {
+    "instance": "instance.json",
+    "report_current": "report_baseline.json",
+    "report_greedy": "report_greedy.json",
+    "report_html": "report.html",
+    "report_markdown": "report.md",
+    "schedule_current": null,
+    "schedule_current_csv": null,
+    "schedule_greedy": null,
+    "schedule_greedy_csv": null
+  },
+  "baseline_ticks": 768,
+  "candidate_label": "greedy",
+  "current_label": "baseline",
+  "greedy_gap_ticks": 0,
+  "greedy_lower_bound_ticks": 549,
+  "greedy_ticks": 549,
+  "model": "STRICT1",
+  "saved_ticks": 219,
+  "slots": 15
+}

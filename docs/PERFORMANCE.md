@@ -51,6 +51,16 @@ copyspace-guard bench \
   --outdir artifacts/bench-readwrite
 ```
 
+For release and CI smoke checks, run the suite:
+
+```bash
+copyspace-guard bench-suite \
+  --outdir artifacts/bench-suite \
+  --max-total-seconds 30
+```
+
+The suite writes `bench_suite.json` with per-case timings, validation reports and failure reasons. Thresholds should be calibrated per CI runner or customer environment; they are guardrails for regressions, not portable performance guarantees.
+
 For scalability checks, also test sparse high-slot workloads, large demand counts, customer schedule CSVs with large tick gaps, and intentionally invalid schedules with `--max-errors`.
 
 ## Known failure modes

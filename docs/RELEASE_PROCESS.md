@@ -6,6 +6,7 @@ Copy-Space Guard release artifacts are produced from a clean tree and verified b
 
 ```bash
 make release-check
+make production-check
 ```
 
 This runs:
@@ -16,6 +17,8 @@ This runs:
 - wheel install smoke in a clean virtual environment;
 - `twine check` over built distributions;
 - `SHA256SUMS`, `release_manifest.csv` and `sbom.cdx.json` generation.
+
+`make production-check` extends this with the synthetic `bench-suite` performance smoke.
 
 ## Tag release
 

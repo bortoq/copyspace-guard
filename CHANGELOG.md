@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.0 — 2026-05-20
+
+Production-oriented pilot hardening release.
+
+Highlights:
+
+- Added release pipeline with wheel/sdist build, wheel-install smoke, `twine check`, checksums, release manifest and SBOM-style inventory.
+- Added GitHub tag release workflow with Docker smoke and release artifact upload.
+- Added machine-readable `copyspace-guard doctor --json` output for CI and client wrappers.
+- Added `copyspace-guard bench-suite` and `make production-check` for performance smoke gating.
+- Added golden compatibility coverage for the reference `ring15` summary artifact.
+- Added artifact contract, operations, production-readiness and security policy docs.
+- Included `SECURITY.md` and golden fixtures in source distributions.
+
 ## v0.1.0-pilot — 2026-05-20
 
 Pilot-grade release.
@@ -31,3 +45,4 @@ Hardening updates:
 - `copyspace-guard doctor --root .` and `make pilot-check` define the repeatable pilot-readiness smoke path.
 - `make release-check` now builds and verifies wheel/sdist, runs wheel-install smoke, checks package metadata, and generates checksums plus a CycloneDX-style SBOM.
 - Tag pushes now run a GitHub release workflow that uploads wheel, sdist, checksums, release manifest and SBOM.
+- Added golden artifact compatibility coverage, `doctor --json`, `bench-suite`, `make production-check`, and production-readiness operations docs.
