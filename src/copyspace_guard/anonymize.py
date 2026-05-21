@@ -25,8 +25,14 @@ def anonymize_demands_csv(
     dst: str | Path,
     mapping_out: str | Path | None = None,
     mapping_in: str | Path | None = None,
+    *,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
 ) -> Dict[str, int]:
     mapping: Dict[str, int] = _load_mapping(mapping_in)
+    src_path = Path(src)
+    if max_file_size is not None and src_path.stat().st_size > max_file_size:
+        raise ValueError(f"anonymize input exceeds --max-file-size {max_file_size} bytes: {src_path}")
 
     def get_id(x: str) -> int:
         x = str(x)
@@ -34,13 +40,17 @@ def anonymize_demands_csv(
             mapping[x] = len(mapping)
         return mapping[x]
 
-    with open(src, "r", encoding="utf-8", newline="") as f, open(dst, "w", encoding="utf-8", newline="") as g:
+    rows_written = 0
+    with open(src_path, "r", encoding="utf-8", newline="") as f, open(dst, "w", encoding="utf-8", newline="") as g:
         rdr = csv.DictReader(f)
         if not rdr.fieldnames or not DEMAND_CONTRACT_FIELDS.issubset(set(rdr.fieldnames)):
             raise ValueError("anonymize currently expects headered CSV with src_slot,dst_slot,bits_total")
         w = csv.DictWriter(g, fieldnames=rdr.fieldnames)
         w.writeheader()
         for row in rdr:
+            rows_written += 1
+            if max_rows is not None and rows_written > max_rows:
+                raise ValueError(f"anonymize input exceeds --max-rows {max_rows}: {src_path}")
             row["src_slot"] = get_id(row["src_slot"])
             row["dst_slot"] = get_id(row["dst_slot"])
             row = {k: (v if k in DEMAND_CONTRACT_FIELDS else csv_safe_cell(v)) for k, v in row.items()}
@@ -55,8 +65,14 @@ def anonymize_schedule_csv(
     dst: str | Path,
     mapping_out: str | Path | None = None,
     mapping_in: str | Path | None = None,
+    *,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
 ) -> Dict[str, int]:
     mapping: Dict[str, int] = _load_mapping(mapping_in)
+    src_path = Path(src)
+    if max_file_size is not None and src_path.stat().st_size > max_file_size:
+        raise ValueError(f"anonymize input exceeds --max-file-size {max_file_size} bytes: {src_path}")
 
     def get_id(x: str) -> int:
         x = str(x)
@@ -64,13 +80,17 @@ def anonymize_schedule_csv(
             mapping[x] = len(mapping)
         return mapping[x]
 
-    with open(src, "r", encoding="utf-8", newline="") as f, open(dst, "w", encoding="utf-8", newline="") as g:
+    rows_written = 0
+    with open(src_path, "r", encoding="utf-8", newline="") as f, open(dst, "w", encoding="utf-8", newline="") as g:
         rdr = csv.DictReader(f)
         if not rdr.fieldnames or not SCHEDULE_CONTRACT_FIELDS.issubset(set(rdr.fieldnames)):
             raise ValueError("schedule anonymize expects headered CSV with tick,src_slot,dst_slot,len_bits")
         w = csv.DictWriter(g, fieldnames=rdr.fieldnames)
         w.writeheader()
         for row in rdr:
+            rows_written += 1
+            if max_rows is not None and rows_written > max_rows:
+                raise ValueError(f"anonymize input exceeds --max-rows {max_rows}: {src_path}")
             row["src_slot"] = get_id(row["src_slot"])
             row["dst_slot"] = get_id(row["dst_slot"])
             row = {k: (v if k in SCHEDULE_CONTRACT_FIELDS else csv_safe_cell(v)) for k, v in row.items()}

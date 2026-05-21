@@ -17,6 +17,16 @@ def money(x: float) -> str:
     return f"${x:,.2f}"
 
 
+def _md_escape(text: Any) -> str:
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("|", "&#124;").replace("\r", " ").replace("\n", " ")
+
+
+def _md_code(text: Any) -> str:
+    value = str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("|", "&#124;")
+    value = value.replace("`", "&#96;").replace("\r", " ").replace("\n", " ")
+    return f"`{value}`"
+
+
 def _inline_html(text: str) -> str:
     escaped = html.escape(text)
     escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
@@ -45,12 +55,12 @@ def metric_table(current: Report, candidate: Report, comparison: Dict[str, Any],
         ("Utilization", pct(current.utilization), pct(candidate.utilization)),
         ("Bits moved", f"{current.bits_total:,}", f"{candidate.bits_total:,}"),
     ]
-    out = f"| Metric | {current_label} | {candidate_label} |\n|---|---:|---:|\n"
+    out = f"| Metric | {_md_code(current_label)} | {_md_code(candidate_label)} |\n|---|---:|---:|\n"
     for name, a, b in rows:
-        out += f"| {name} | {a} | {b} |\n"
+        out += f"| {_md_escape(name)} | {_md_escape(a)} | {_md_escape(b)} |\n"
     out += "\n"
     if not comparison.get("comparable", True):
-        out += f"- Comparison status: **not comparable** — {comparison.get('comparison_note', '')}\n"
+        out += f"- Comparison status: **not comparable** - {_md_code(comparison.get('comparison_note', ''))}\n"
     else:
         out += f"- Saved ticks: **{comparison['saved_ticks']:,}** ({pct(comparison['saved_ticks_pct'])})\n"
         out += f"- Gap reduction: **{comparison['gap_reduction_ticks']:,} ticks**\n"
@@ -100,15 +110,15 @@ def diagnostics_section(current: Report, candidate: Report, current_label: str, 
         for err in rep.errors:
             kind = str(err.get("kind", "UNKNOWN"))
             counts[kind] = counts.get(kind, 0) + 1
-        groups = ", ".join(f"{kind}: {count}" for kind, count in sorted(counts.items())) or "stored errors: 0"
+        groups = ", ".join(f"{_md_code(kind)}: {count}" for kind, count in sorted(counts.items())) or "stored errors: 0"
         suffix = " Stored examples are truncated." if rep.errors_truncated else ""
-        out += f"### `{label}`\n\n"
+        out += f"### {_md_code(label)}\n\n"
         out += f"- Total validation errors: **{rep.total_errors}**. Stored error groups: {groups}.{suffix}\n"
         for err in rep.errors[:max_examples]:
-            kind = str(err.get("kind", "UNKNOWN"))
-            msg = str(err.get("msg", ""))
+            kind = _md_code(err.get("kind", "UNKNOWN"))
+            msg = _md_code(err.get("msg", ""))
             ctx = {k: v for k, v in err.items() if k not in {"kind", "msg"}}
-            ctx_text = ", ".join(f"{k}={v}" for k, v in sorted(ctx.items()))
+            ctx_text = ", ".join(f"{_md_code(k)}={_md_code(v)}" for k, v in sorted(ctx.items()))
             detail = f" ({ctx_text})" if ctx_text else ""
             out += f"- `{kind}`: {msg}{detail}\n"
         out += "\n"
@@ -121,9 +131,13 @@ def render_markdown(summary: Dict[str, Any]) -> str:
     comp = summary["comparison"]
     roi = summary.get("roi") or {}
     today = date.today().isoformat()
+    inst_id = _md_code(inst.get("id", "unnamed"))
+    model = _md_code(inst["model"])
+    current_label_text = _md_code(current_label)
+    candidate_label_text = _md_code(candidate_label)
     annual = roi.get("savings_per_year_usd", 0.0)
     if not comp.get("comparable", True):
-        business_line = f"Savings are not computed because validation failed: {comp.get('comparison_note', '')}"
+        business_line = f"Savings are not computed because validation failed: {_md_code(comp.get('comparison_note', ''))}"
     else:
         business_line = (
             f"Estimated annualized savings under the supplied ROI model: **{money(annual)}**."
@@ -133,8 +147,8 @@ def render_markdown(summary: Dict[str, Any]) -> str:
     return f"""# Copy-Space Guard — Data Movement Audit Report
 
 Date: {today}  
-Workload: `{inst.get('id', 'unnamed')}`  
-Model: `{inst['model']}`  
+Workload: {inst_id}  
+Model: {model}  
 Slots: **{inst['slots']}**  
 Bandwidth per slot-pair per tick: **{inst['copy_bw_bits_per_tick']:,} bits**  
 Demands: **{len(inst.get('demands', []))} directed pairs**
@@ -142,9 +156,9 @@ Demands: **{len(inst.get('demands', []))} directed pairs**
 ## Executive summary
 
 This report validates and compares two deterministic schedules for the same data-movement demand matrix.
-The `{current_label}` schedule is treated as the current strategy. The `{candidate_label}` schedule is the deterministic candidate strategy.
+The {current_label_text} schedule is treated as the current strategy. The {candidate_label_text} schedule is the deterministic candidate strategy.
 
-**Business impact:** {business_line if not comp.get("comparable", True) else f"`{candidate_label}` saves **{comp['saved_ticks']:,} ticks** versus `{current_label}` and improves utilization by **{pct(comp['utilization_delta'])}**. {business_line}"}
+**Business impact:** {business_line if not comp.get("comparable", True) else f"{candidate_label_text} saves **{comp['saved_ticks']:,} ticks** versus {current_label_text} and improves utilization by **{pct(comp['utilization_delta'])}**. {business_line}"}
 
 {metric_table(cur, cand, comp, current_label, candidate_label)}
 
@@ -160,7 +174,7 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 - `capacity_lower_bound` is derived from total chunks divided by full-graph per-tick matching capacity.
 - `density_lower_bound` is derived from all subset matching-capacity constraints when the slot count is within the exhaustive limit.
 - `lower_bound_ticks` is the maximum of currently implemented deterministic lower bounds.
-- `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared `{inst['model']}` model.
+- `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared {model} model.
 - A positive saved-ticks number is potential time/capacity savings per workload run before deeper topology-specific modeling.
 - The tool is metadata-only: it requires transfer demand metadata, not payload data.
 - The CI gate can prevent future schedule regressions after scheduler, storage, ETL or infrastructure changes.
@@ -168,7 +182,7 @@ The `{current_label}` schedule is treated as the current strategy. The `{candida
 ## Recommended next step
 
 1. Replace the demo demand CSV with one real trace from the target system.
-2. Confirm whether `{inst['model']}` matches the system constraints or extend the model.
+2. Confirm whether {model} matches the system constraints or extend the model.
 3. Add this report as a CI regression gate: fail if `ticks_total`, `gap_to_lower_bound`, or utilization regress beyond agreed thresholds.
 4. If savings are material, build a customer-specific importer and compare the customer's scheduler against multiple candidate strategies.
 
@@ -232,7 +246,7 @@ def render_html(summary: Dict[str, Any]) -> str:
             table_rows = []
 
     for line in lines:
-        if line.startswith("| "):
+        if line.startswith("|"):
             flush_ul()
             flush_ol()
             cells = [c.strip() for c in line.strip().strip("|").split("|")]

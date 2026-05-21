@@ -38,7 +38,7 @@ from copyspace_guard.core import (  # noqa: E402
     validate_ticks_iter,
 )
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
-from copyspace_guard.report import bounds_warning_section, metric_table, money, pct, render_html, roi_section  # noqa: E402
+from copyspace_guard.report import bounds_warning_section, metric_table, money, pct, render_html, render_markdown, roi_section  # noqa: E402
 import tools.release_artifacts as release_artifacts  # noqa: E402
 
 
@@ -418,6 +418,45 @@ class RoiSolverReportAndReleaseTests(unittest.TestCase):
             "artifacts": {},
         })
         self.assertIn("<h3>", html)
+
+    def test_render_markdown_escapes_user_controlled_text(self) -> None:
+        current = Report(
+            status="FAIL",
+            version=0,
+            model="STRICT1",
+            errors=[{"kind": "k<script>", "msg": "bad <b>& value", "path": "a|b"}],
+            total_errors=1,
+            errors_truncated=False,
+        )
+        candidate = Report(
+            status="PASS",
+            version=0,
+            model="STRICT1",
+            errors=[],
+            ticks_total=0,
+            gap_to_lower_bound=0.0,
+            utilization=0.0,
+        )
+        summary = {
+            "instance": {
+                "version": 0,
+                "id": "trace <script>&|",
+                "model": "STRICT1",
+                "slots": 2,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [],
+            },
+            "current_label": "cur<script>&|",
+            "candidate_label": "cand<script>&|",
+            "reports": {"cur<script>&|": current.to_dict(), "cand<script>&|": candidate.to_dict()},
+            "comparison": {"comparable": False, "comparison_note": "note <script>&|"},
+            "roi": {},
+        }
+        md = render_markdown(summary)
+        self.assertNotIn("<script>", md)
+        self.assertIn("&lt;script&gt;", md)
+        self.assertIn("&#124;", md)
+        self.assertIn("&amp;", md)
 
     def test_anonymize_header_errors(self) -> None:
         with tempfile.TemporaryDirectory() as td:

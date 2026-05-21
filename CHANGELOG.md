@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.3 — 2026-05-21
+
+Security and release hardening.
+
+Highlights:
+
+- Bumped the package metadata to `0.2.3` after the anonymized CSV export hardening release.
+- Hardened Markdown report rendering against user-controlled text injection.
+- Applied output-path guardrails to all CLI write paths.
+- Added size and row limits to anonymize commands.
+
 ## v0.2.2 — 2026-05-21
 
 PyPI publishing fix.
