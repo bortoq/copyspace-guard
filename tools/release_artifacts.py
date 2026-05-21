@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from copyspace_guard.io import csv_safe_cell
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,10 +24,7 @@ def sha256(path: Path) -> str:
 
 
 def _csv_safe(value: Any) -> str:
-    text = str(value)
-    if text[:1] in {"=", "+", "-", "@"}:
-        return "'" + text
-    return text
+    return str(csv_safe_cell(str(value)))
 
 
 def read_project_metadata() -> tuple[str, str, list[str]]:

@@ -28,6 +28,8 @@ copyspace-guard anonymize --kind demands --csv raw_demands.csv --out demands_ano
 copyspace-guard anonymize --kind schedule --csv raw_schedule.csv --out schedule_anon.csv --mapping-in mapping.json --mapping mapping.json
 ```
 
+Anonymized CSV outputs preserve extra customer columns for context. Extra text cells are escaped for spreadsheet safety when they start with formula trigger characters (`=`, `+`, `-`, `@`, tab or carriage return). Numeric contract fields remain strict integers.
+
 ## On-prem option
 
 The CLI runs locally with no runtime Python dependencies and no network calls. For sensitive environments, run it inside the customer's own workstation, CI runner or cluster login node.
