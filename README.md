@@ -365,6 +365,8 @@ copyspace-guard anonymize \
 
 Use `--mapping-in` when anonymizing demands and schedules that must share the same slot-ID mapping. Do not share `mapping.json` unless you intend to reveal the original endpoint names.
 
+For large or untrusted CSVs, `anonymize` also supports `--max-rows` and `--max-file-size` as opt-in guardrails.
+
 ## Sales-oriented demos
 
 Bad current schedule vs candidate:
