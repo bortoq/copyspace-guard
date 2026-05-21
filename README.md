@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-brightgreen.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/copyspace-guard.svg)](https://pypi.org/project/copyspace-guard/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Status: production-oriented pilot / v0.2.
+**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Current release: **v0.2.2** on PyPI. Status: production-oriented pilot.
 
 It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a declared resource model, compares a baseline or customer schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
 
@@ -25,12 +26,18 @@ This package is intentionally small and pilot-friendly:
 
 ## Quickstart
 
-From this directory:
+Install from PyPI:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install copyspace-guard
+copyspace-guard --version
+```
+
+Run the bundled example from a repository checkout:
+
+```bash
 copyspace-guard analyze \
   --csv examples/ring15.csv \
   --bw 256 \
@@ -54,6 +61,14 @@ saved_ticks=219 estimated_savings=9.73
 ```
 
 The exact numbers depend on the input CSV and bandwidth value.
+
+For local development from this repository, install editable mode with development tooling:
+
+```bash
+python -m pip install -e ".[dev]"
+make test
+make security
+```
 
 ## Input format
 
@@ -143,10 +158,12 @@ copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
 ### Run production-oriented checks
 
 ```bash
+make test
+make security
 make production-check
 ```
 
-This runs release checks plus a small synthetic performance suite. The suite can also be run directly:
+`make test` runs ruff, mypy, compileall, unit/property/CLI tests, coverage and a CI gate smoke. `make security` runs Bandit over `src`/`tools` and `pip-audit` over the Python environment. `make production-check` runs release checks plus a small synthetic performance suite. The suite can also be run directly:
 
 ```bash
 copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
@@ -206,7 +223,7 @@ Exit code `0` means pass, exit code `2` means fail.
 - `report.md` — human-readable audit report.
 - `report.html` — shareable report for demos and sales calls.
 
-## v0.2 boundaries
+## v0.2.2 boundaries
 
 Included:
 
@@ -215,16 +232,21 @@ Included:
 - STRICT1 and READ1_WRITE1 validators;
 - lower-bound gap and utilization metrics;
 - ROI estimates via `roi.yml` or a simple `$ per tick` assumption;
-- sales-ready report artifacts.
+- sales-ready report artifacts;
+- PyPI publishing through GitHub Actions Trusted Publishing;
+- matrix CI for Python 3.10, 3.11 and 3.12;
+- required CI checks for tests, build, Docker smoke and security scans;
+- release version guard for tag/version synchronization;
+- Dependabot automation for GitHub Actions updates.
 
 Not included yet:
 
-- production security hardening;
 - topology/path selection;
 - real transfer execution;
 - cloud adapter importers;
 - address-level offset validation;
-- VCopySpace receipt ledger integration.
+- VCopySpace receipt ledger integration;
+- complete spreadsheet formula escaping for pass-through customer CSV text columns.
 
 Known operational caveats:
 
@@ -232,6 +254,7 @@ Known operational caveats:
 - Full artifact mode can produce large schedule JSON/CSV files; use `--summary-only` for large pilots and CI.
 - For large STRICT1 slot counts, subset-density lower bounds may be partial; check `bounds_complete` in reports.
 - The greedy schedule is deterministic and useful for comparison, but it is not a proof of global optimality.
+- Demand and schedule core fields are parsed as integers. Pass-through text columns in anonymized CSV outputs should be treated as untrusted when opened in spreadsheet tools until formula escaping is applied end-to-end.
 
 ## How this maps to the larger project set
 
@@ -277,6 +300,19 @@ gates:
   max_gap_to_lower_bound: 0.15
   min_utilization: 0.85
 ```
+
+## Release automation
+
+Tag releases are published to GitHub Releases and PyPI. Before a tag publishes, the release workflow verifies that the tag version matches both `pyproject.toml` and `copyspace_guard.__version__`.
+
+Prepare a version bump locally:
+
+```bash
+VERSION=0.2.3 NOTE="Short release note" make bump-version
+TAG=v0.2.3 make release-guard
+```
+
+GitHub release notes are autogenerated from merged pull requests. See `docs/RELEASE_PROCESS.md` for the full process and PyPI Trusted Publishing configuration.
 
 ## Docker
 
