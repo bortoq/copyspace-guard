@@ -1,6 +1,7 @@
 # Copy-Space Guard
 
 [![CI](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-94%25-brightgreen.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
