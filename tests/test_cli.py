@@ -121,6 +121,16 @@ class CliTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 1)
             self.assertIn("--max-file-size", rc.stderr)
 
+    def test_anonymize_unique_slot_limit_is_enforced(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            csv_path = root / "input.csv"
+            csv_path.write_text("src_slot,dst_slot,bits_total\n0,1,1\n1,2,1\n", encoding="utf-8")
+
+            rc = run_cli("anonymize", "--kind", "demands", "--csv", str(csv_path), "--out", str(root / "out.csv"), "--max-unique-slots", "2", check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("--max-unique-slots", rc.stderr)
+
     def test_ring15_summary_golden_contract(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"

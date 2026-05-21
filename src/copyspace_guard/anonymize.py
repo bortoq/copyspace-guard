@@ -28,6 +28,7 @@ def anonymize_demands_csv(
     *,
     max_rows: int | None = None,
     max_file_size: int | None = None,
+    max_unique_slots: int | None = None,
 ) -> Dict[str, int]:
     mapping: Dict[str, int] = _load_mapping(mapping_in)
     src_path = Path(src)
@@ -37,6 +38,8 @@ def anonymize_demands_csv(
     def get_id(x: str) -> int:
         x = str(x)
         if x not in mapping:
+            if max_unique_slots is not None and len(mapping) >= max_unique_slots:
+                raise ValueError(f"anonymize input exceeds --max-unique-slots {max_unique_slots}: {src_path}")
             mapping[x] = len(mapping)
         return mapping[x]
 
@@ -68,6 +71,7 @@ def anonymize_schedule_csv(
     *,
     max_rows: int | None = None,
     max_file_size: int | None = None,
+    max_unique_slots: int | None = None,
 ) -> Dict[str, int]:
     mapping: Dict[str, int] = _load_mapping(mapping_in)
     src_path = Path(src)
@@ -77,6 +81,8 @@ def anonymize_schedule_csv(
     def get_id(x: str) -> int:
         x = str(x)
         if x not in mapping:
+            if max_unique_slots is not None and len(mapping) >= max_unique_slots:
+                raise ValueError(f"anonymize input exceeds --max-unique-slots {max_unique_slots}: {src_path}")
             mapping[x] = len(mapping)
         return mapping[x]
 

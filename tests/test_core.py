@@ -354,6 +354,14 @@ class AnonymizeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "mapping input"):
                 anonymize_demands_csv(demands, root / "bad.csv", mapping_in=bad_mapping)
 
+    def test_anonymize_unique_slot_limit_is_enforced(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            demands = root / "demands.csv"
+            demands.write_text("src_slot,dst_slot,bits_total\nrack-a,rack-b,10\nrack-b,rack-c,20\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "max-unique-slots"):
+                anonymize_demands_csv(demands, root / "anon.csv", max_unique_slots=2)
+
 
 class ReleaseArtifactTests(unittest.TestCase):
     def test_release_manifest_escapes_formula_like_cells(self):
