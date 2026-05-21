@@ -216,6 +216,8 @@ def cmd_anonymize(args: argparse.Namespace) -> int:
         raise ValueError("--max-rows must be >= 0")
     if args.max_file_size is not None and args.max_file_size < 0:
         raise ValueError("--max-file-size must be >= 0")
+    if args.max_unique_slots is not None and args.max_unique_slots < 0:
+        raise ValueError("--max-unique-slots must be >= 0")
     out_path = prepare_output_file(Path(args.out))
     mapping_path = prepare_output_file(Path(args.mapping)) if args.mapping else None
     if args.kind == "schedule":
@@ -226,6 +228,7 @@ def cmd_anonymize(args: argparse.Namespace) -> int:
             args.mapping_in,
             max_rows=args.max_rows,
             max_file_size=args.max_file_size,
+            max_unique_slots=args.max_unique_slots,
         )
     else:
         mapping = anonymize_demands_csv(
@@ -235,6 +238,7 @@ def cmd_anonymize(args: argparse.Namespace) -> int:
             args.mapping_in,
             max_rows=args.max_rows,
             max_file_size=args.max_file_size,
+            max_unique_slots=args.max_unique_slots,
         )
     print(f"anonymized CSV written to: {out_path}")
     if mapping_path:
@@ -507,6 +511,7 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--kind", choices=["demands", "schedule"], default="demands")
     an.add_argument("--max-rows", type=int, default=None, help="maximum data rows to process")
     an.add_argument("--max-file-size", type=int, default=None, help="maximum input CSV size in bytes")
+    an.add_argument("--max-unique-slots", type=int, default=None, help="maximum number of unique slot IDs to map")
     an.set_defaults(func=cmd_anonymize)
 
     b = sub.add_parser("bench", help="run a synthetic ring benchmark without writing full schedules")
