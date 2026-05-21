@@ -237,7 +237,7 @@ class SchemaFilesTests(unittest.TestCase):
 
 class IoAndContractTests(unittest.TestCase):
     def test_csv_safe_cell_escapes_spreadsheet_formula_prefixes(self):
-        for value in ["=cmd", "+cmd", "-cmd", "@cmd", "\tcmd", "\rcmd"]:
+        for value in ["=cmd", "+cmd", "-cmd", "@cmd", "\tcmd", "\rcmd", "\ncmd"]:
             self.assertEqual(csv_safe_cell(value), "'" + value)
         self.assertEqual(csv_safe_cell("safe"), "safe")
         self.assertEqual(csv_safe_cell(123), 123)
