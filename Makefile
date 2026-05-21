@@ -1,4 +1,4 @@
-.PHONY: demo test pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench bench-suite production-check
+.PHONY: demo test security release-guard bump-version pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench bench-suite production-check
 
 demo:
 	copyspace-guard analyze --csv examples/ring15.csv --bw 256 --roi examples/roi.yml --outdir artifacts/demo
@@ -11,6 +11,17 @@ test:
 	COVERAGE_FILE=/tmp/copyspace-guard.coverage python -m coverage report --fail-under=80
 	copyspace-guard analyze --csv examples/ring15.csv --bw 256 --roi examples/roi.yml --summary-only --outdir /tmp/copyspace-guard-demo
 	copyspace-guard gate /tmp/copyspace-guard-demo/summary.json --config examples/copyspace_guard.yml
+
+security:
+	python -m bandit -q -r src tools
+	python -m pip_audit --progress-spinner off
+
+release-guard:
+	python tools/release_version.py check --tag "$${TAG:-}"
+
+bump-version:
+	@test -n "$${VERSION}" || (echo "usage: VERSION=0.2.3 make bump-version" >&2; exit 2)
+	python tools/release_version.py bump "$${VERSION}" $${NOTE:+--note "$${NOTE}"}
 
 pilot-check:
 	copyspace-guard doctor --root .

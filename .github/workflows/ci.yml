@@ -76,6 +76,20 @@ jobs:
             --summary-only \
             --outdir /tmp/csg-wheel-smoke/out
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Static security scan
+        run: python -m bandit -q -r src tools
+      - name: Dependency vulnerability scan
+        run: python -m pip_audit --progress-spinner off
+
   docker:
     runs-on: ubuntu-latest
     steps:
