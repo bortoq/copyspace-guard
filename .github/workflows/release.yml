@@ -70,5 +70,12 @@ jobs:
           name: release-artifacts
           path: dist
 
+      - name: Select package distributions
+        run: |
+          mkdir -p dist-pypi
+          cp dist/*.whl dist/*.tar.gz dist-pypi/
+
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-pypi
