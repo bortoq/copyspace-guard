@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Current release: **v0.2.2** on PyPI. Status: production-oriented pilot.
+**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Current release: **v0.2.3** on PyPI. Status: production-oriented pilot.
 
 It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a declared resource model, compares a baseline or customer schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
 
@@ -223,7 +223,7 @@ Exit code `0` means pass, exit code `2` means fail.
 - `report.md` — human-readable audit report.
 - `report.html` — shareable report for demos and sales calls.
 
-## v0.2.2 boundaries
+## v0.2.3 boundaries
 
 Included:
 

@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterator, List, Tuple
 
 from .types import Chunk, Demand, Instance, MODEL, MODELS, Schedule
 
-SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def _is_header_row(row: List[str], required: set[str]) -> bool:

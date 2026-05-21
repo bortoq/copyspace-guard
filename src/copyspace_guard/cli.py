@@ -144,7 +144,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
     sched = load_json(args.schedule)
     rep = validate_schedule(inst, sched, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
     if args.report:
-        dump_json(args.report, rep.to_dict())
+        report_path = prepare_output_file(Path(args.report))
+        dump_json(report_path, rep.to_dict())
     print(rep.status)
     if rep.status != "PASS":
         print(rep.errors[0], file=sys.stderr)
@@ -165,8 +166,9 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_schedule_csv_to_json(args: argparse.Namespace) -> int:
     sched = schedule_from_csv(args.csv, fill_empty_ticks=not args.compact_ticks, model=args.model)
-    dump_json(args.out, sched)
-    print(f"schedule JSON written to: {args.out}")
+    out_path = prepare_output_file(Path(args.out))
+    dump_json(out_path, sched)
+    print(f"schedule JSON written to: {out_path}")
     return 0
 
 
@@ -210,13 +212,33 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
 
 def cmd_anonymize(args: argparse.Namespace) -> int:
+    if args.max_rows is not None and args.max_rows < 0:
+        raise ValueError("--max-rows must be >= 0")
+    if args.max_file_size is not None and args.max_file_size < 0:
+        raise ValueError("--max-file-size must be >= 0")
+    out_path = prepare_output_file(Path(args.out))
+    mapping_path = prepare_output_file(Path(args.mapping)) if args.mapping else None
     if args.kind == "schedule":
-        mapping = anonymize_schedule_csv(args.csv, args.out, args.mapping, args.mapping_in)
+        mapping = anonymize_schedule_csv(
+            args.csv,
+            out_path,
+            mapping_path,
+            args.mapping_in,
+            max_rows=args.max_rows,
+            max_file_size=args.max_file_size,
+        )
     else:
-        mapping = anonymize_demands_csv(args.csv, args.out, args.mapping, args.mapping_in)
-    print(f"anonymized CSV written to: {args.out}")
-    if args.mapping:
-        print(f"mapping written to: {args.mapping}")
+        mapping = anonymize_demands_csv(
+            args.csv,
+            out_path,
+            mapping_path,
+            args.mapping_in,
+            max_rows=args.max_rows,
+            max_file_size=args.max_file_size,
+        )
+    print(f"anonymized CSV written to: {out_path}")
+    if mapping_path:
+        print(f"mapping written to: {mapping_path}")
     print(f"unique_slots={len(mapping)}")
     return 0
 
@@ -383,6 +405,24 @@ def prepare_output_dir(path: Path) -> Path:
     return path
 
 
+def prepare_output_file(path: Path) -> Path:
+    if any(part == ".." for part in path.parts):
+        raise ValueError(f"output path must not contain parent directory traversal: {path}")
+    if path.exists():
+        if path.is_dir():
+            raise ValueError(f"output path must not be a directory: {path}")
+        if path.is_symlink():
+            raise ValueError(f"output path must not be a symlink: {path}")
+    for ancestor in path.parents:
+        if ancestor.exists() and ancestor.is_symlink():
+            raise ValueError(f"output path must not traverse through a symlink: {path}")
+    parent = path.parent
+    if parent.exists() and not parent.is_dir():
+        raise ValueError(f"output path parent must be a directory: {parent}")
+    parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     checks = doctor_checks(root)
@@ -465,6 +505,8 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--mapping", default=None)
     an.add_argument("--mapping-in", default=None, help="optional existing mapping JSON to reuse")
     an.add_argument("--kind", choices=["demands", "schedule"], default="demands")
+    an.add_argument("--max-rows", type=int, default=None, help="maximum data rows to process")
+    an.add_argument("--max-file-size", type=int, default=None, help="maximum input CSV size in bytes")
     an.set_defaults(func=cmd_anonymize)
 
     b = sub.add_parser("bench", help="run a synthetic ring benchmark without writing full schedules")

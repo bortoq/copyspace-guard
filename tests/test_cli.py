@@ -21,6 +21,7 @@ class CliTests(unittest.TestCase):
         rc = run_cli("--version")
         self.assertEqual(rc.returncode, 0)
         self.assertIn("copyspace-guard", rc.stdout)
+        self.assertIn("0.2.3", rc.stdout)
 
     def test_doctor_command(self):
         rc = run_cli("doctor", "--root", str(ROOT))
@@ -79,6 +80,46 @@ class CliTests(unittest.TestCase):
             run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--summary-only", "--outdir", str(out))
             rc = run_cli("validate-artifact", "--kind", "summary", str(out / "summary.json"))
             self.assertEqual(rc.returncode, 0)
+
+    def test_file_output_guardrails_apply_to_cli_writes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inst = root / "instance.json"
+            sched = root / "schedule.json"
+            inst.write_text(json.dumps({
+                "version": 0,
+                "model": "STRICT1",
+                "slots": 2,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+            }), encoding="utf-8")
+            sched.write_text(json.dumps({"version": 0, "model": "STRICT1", "ticks": [[{"src_slot": 0, "dst_slot": 1, "len_bits": 1}]]}), encoding="utf-8")
+
+            rc = run_cli("validate", str(inst), str(sched), "--report", "../escape.json", check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("parent directory traversal", rc.stderr)
+
+            rc = run_cli("schedule-csv-to-json", "--csv", "examples/demo_bad_current_schedule.csv", "--out", "../escape.json", check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("parent directory traversal", rc.stderr)
+
+            rc = run_cli("anonymize", "--kind", "demands", "--csv", "examples/demo_bad_current_demands.csv", "--out", "../escape.csv", check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("parent directory traversal", rc.stderr)
+
+    def test_anonymize_limits_are_enforced(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            csv_path = root / "input.csv"
+            csv_path.write_text("src_slot,dst_slot,bits_total\n0,1,1\n1,2,1\n", encoding="utf-8")
+
+            rc = run_cli("anonymize", "--kind", "demands", "--csv", str(csv_path), "--out", str(root / "out.csv"), "--max-rows", "1", check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("--max-rows", rc.stderr)
+
+            rc = run_cli("anonymize", "--kind", "demands", "--csv", str(csv_path), "--out", str(root / "out2.csv"), "--max-file-size", "1", check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("--max-file-size", rc.stderr)
 
     def test_ring15_summary_golden_contract(self):
         with tempfile.TemporaryDirectory() as td:
