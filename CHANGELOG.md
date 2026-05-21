@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.2.1 — 2026-05-21
+
+Release and verification hardening.
+
+Highlights:
+
+- Added expanded tests for CLI commands, CSV error handling, validators, schema contracts, ROI calculations, report rendering, solver branches and release artifacts.
+- Raised measured source coverage to 94% and added a README coverage badge.
+- Added PyPI Trusted Publishing through GitHub Actions OIDC for tag releases.
+- Documented the required PyPI trusted publisher configuration.
+
 ## v0.2.0 — 2026-05-20
 
 Production-oriented pilot hardening release.
