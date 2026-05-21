@@ -26,6 +26,7 @@ classifiers = [
 dev = [
   "build>=1.2",
   "coverage>=7",
+  "hypothesis>=6.100",
   "jsonschema>=4.22",
   "mypy>=1.10",
   "ruff>=0.5",
@@ -49,7 +50,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "B"]
-ignore = ["E501", "B023"]
+ignore = ["E501"]
 
 
 [project.urls]

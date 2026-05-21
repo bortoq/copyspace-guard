@@ -1,4 +1,5 @@
 import json
+import csv
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,7 @@ from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_
 from copyspace_guard.io import dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
 from copyspace_guard.report import render_html, render_markdown, write_reports  # noqa: E402
 from copyspace_guard.schema import validate_report_contract, validate_schedule_contract  # noqa: E402
+import tools.release_artifacts as release_artifacts  # noqa: E402
 
 
 class CoreTests(unittest.TestCase):
@@ -338,6 +340,22 @@ class AnonymizeTests(unittest.TestCase):
             bad_mapping.write_text('{"rack-a": -1}', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "mapping input"):
                 anonymize_demands_csv(demands, root / "bad.csv", mapping_in=bad_mapping)
+
+
+class ReleaseArtifactTests(unittest.TestCase):
+    def test_release_manifest_escapes_formula_like_cells(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            dist = root / "dist"
+            dist.mkdir()
+            bad = dist / "=evil.tar.gz"
+            bad.write_text("x", encoding="utf-8")
+            manifest = release_artifacts.write_manifest(root, "=proj", "=1.0", [bad])
+            with manifest.open("r", encoding="utf-8", newline="") as f:
+                rows = list(csv.reader(f))
+            self.assertEqual(rows[1][0], "'=proj")
+            self.assertEqual(rows[1][1], "'=1.0")
+            self.assertEqual(rows[1][2], "'=evil.tar.gz")
 
 
 class ReportRenderingTests(unittest.TestCase):

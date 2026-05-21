@@ -106,6 +106,11 @@ class CliTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 1)
             self.assertIn("exceeds --max-slots", rc.stderr)
 
+    def test_outdir_parent_traversal_is_rejected(self):
+        rc = run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--outdir", "../copyspace-guard-escape", check=False)
+        self.assertEqual(rc.returncode, 1)
+        self.assertIn("parent directory traversal", rc.stderr)
+
     def test_invalid_current_is_not_comparable(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"

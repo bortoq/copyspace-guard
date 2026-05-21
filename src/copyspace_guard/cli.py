@@ -35,8 +35,7 @@ from .report import write_reports
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
-    outdir = Path(args.outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
+    outdir = prepare_output_dir(Path(args.outdir))
     if args.max_errors is not None and args.max_errors < 0:
         raise ValueError("--max-errors must be >= 0")
     if args.bounds_subset_limit < 0:
@@ -158,8 +157,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_report(args: argparse.Namespace) -> int:
     summary = load_json(args.summary)
-    write_reports(args.outdir, summary)
-    print(f"reports written to: {args.outdir}")
+    outdir = prepare_output_dir(Path(args.outdir))
+    write_reports(outdir, summary)
+    print(f"reports written to: {outdir}")
     return 0
 
 
@@ -254,7 +254,7 @@ def run_synthetic_bench(
     rows = ["src_slot,dst_slot,bits_total"]
     for i in range(slots):
         rows.append(f"{i},{(i + 1) % slots},{bits_per_edge}")
-    outdir.mkdir(parents=True, exist_ok=True)
+    outdir = prepare_output_dir(outdir)
     demands = outdir / "bench_demands.csv"
     if write_demands:
         demands.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -280,7 +280,7 @@ def run_synthetic_bench(
 
 
 def cmd_bench_suite(args: argparse.Namespace) -> int:
-    outdir = Path(args.outdir)
+    outdir = prepare_output_dir(Path(args.outdir))
     cases: list[dict[str, Any]] = [
         {"name": "strict1-ring32", "slots": 32, "bits_per_edge": 1048576, "bw": 1048576, "model": "STRICT1"},
         {"name": "strict1-ring128", "slots": 128, "bits_per_edge": 1048576, "bw": 1048576, "model": "STRICT1"},
@@ -370,6 +370,17 @@ def doctor_checks(root: Path) -> list[dict[str, object]]:
         except Exception as e:
             checks.append({"name": f"schema-json:{kind}", "ok": False, "detail": str(e)})
     return checks
+
+
+def prepare_output_dir(path: Path) -> Path:
+    if any(part == ".." for part in path.parts):
+        raise ValueError("--outdir must not contain parent directory traversal")
+    if path.exists() and not path.is_dir():
+        raise ValueError(f"--outdir must be a directory: {path}")
+    if path.exists() and path.is_symlink():
+        raise ValueError(f"--outdir must not be a symlink: {path}")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:

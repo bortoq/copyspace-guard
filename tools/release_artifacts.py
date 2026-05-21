@@ -21,6 +21,13 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _csv_safe(value: Any) -> str:
+    text = str(value)
+    if text[:1] in {"=", "+", "-", "@"}:
+        return "'" + text
+    return text
+
+
 def read_project_metadata() -> tuple[str, str, list[str]]:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     init_py = (ROOT / "src" / "copyspace_guard" / "__init__.py").read_text(encoding="utf-8")
@@ -48,7 +55,13 @@ def write_manifest(out: Path, project: str, version: str, files: list[Path]) -> 
         writer = csv.writer(f)
         writer.writerow(["project", "version", "filename", "sha256", "bytes"])
         for path in files:
-            writer.writerow([project, version, path.name, sha256(path), path.stat().st_size])
+            writer.writerow([
+                _csv_safe(project),
+                _csv_safe(version),
+                _csv_safe(path.name),
+                sha256(path),
+                path.stat().st_size,
+            ])
     return manifest
 
 

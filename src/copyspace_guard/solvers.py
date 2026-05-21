@@ -83,7 +83,7 @@ def iter_greedy(inst: Instance) -> Iterator[List[Chunk]]:
         deg = _pending_degrees(pending, bw)
         order = list(range(len(pending)))
 
-        def key(i: int) -> Tuple[int, int, int, int, int]:
+        def key(i: int, *, pending: List[Dict[str, int]] = pending, deg: Dict[int, int] = deg, bw: int = bw) -> Tuple[int, int, int, int, int]:
             it = pending[i]
             s, t, rem = it["src_slot"], it["dst_slot"], it["rem_bits"]
             score = deg.get(s, 0) + deg.get(t, 0)
