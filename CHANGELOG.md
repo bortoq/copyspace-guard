@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.2 — 2026-05-21
+
+PyPI publishing fix.
+
+Highlights:
+
+- Restricted the PyPI Trusted Publishing job to upload only wheel and sdist distributions from release artifacts.
+
 ## v0.2.1 — 2026-05-21
 
 Release and verification hardening.
