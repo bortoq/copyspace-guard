@@ -89,8 +89,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     dump_json(outdir / "instance.json", inst)
     if not args.summary_only:
-        assert current is not None
-        assert greedy is not None
+        if current is None or greedy is None:
+            raise RuntimeError("internal error: schedules were not materialized")
         dump_json(outdir / f"schedule_{current_label}.json", current)
         write_schedule_csv(outdir / f"schedule_{current_label}.csv", current)
         dump_json(outdir / "schedule_greedy.json", greedy)

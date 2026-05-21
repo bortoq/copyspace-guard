@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "copyspace-guard"
-version = "0.2.0"
+version = "0.2.2"
 description = "Deterministic data-movement audit, validation and optimization reports"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,10 +25,12 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
   "build>=1.2",
+  "bandit>=1.7",
   "coverage>=7",
   "hypothesis>=6.100",
   "jsonschema>=4.22",
   "mypy>=1.10",
+  "pip-audit>=2.7",
   "ruff>=0.5",
   "setuptools>=77",
   "twine>=5.1",
