@@ -246,7 +246,7 @@ Not included yet:
 - cloud adapter importers;
 - address-level offset validation;
 - VCopySpace receipt ledger integration;
-- complete spreadsheet formula escaping for pass-through customer CSV text columns.
+- topology/path-specific CSV importers beyond the current demand and schedule formats.
 
 Known operational caveats:
 
@@ -254,7 +254,7 @@ Known operational caveats:
 - Full artifact mode can produce large schedule JSON/CSV files; use `--summary-only` for large pilots and CI.
 - For large STRICT1 slot counts, subset-density lower bounds may be partial; check `bounds_complete` in reports.
 - The greedy schedule is deterministic and useful for comparison, but it is not a proof of global optimality.
-- Demand and schedule core fields are parsed as integers. Pass-through text columns in anonymized CSV outputs should be treated as untrusted when opened in spreadsheet tools until formula escaping is applied end-to-end.
+- Demand and schedule core fields are parsed as integers. Pass-through text columns in anonymized CSV outputs are prefixed with a single quote when they begin with spreadsheet formula trigger characters (`=`, `+`, `-`, `@`, tab or carriage return).
 
 ## How this maps to the larger project set
 

@@ -7,10 +7,26 @@ from typing import Any, Dict, Iterator, List, Tuple
 
 from .types import Chunk, Demand, Instance, MODEL, MODELS, Schedule
 
+SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
 
 def _is_header_row(row: List[str], required: set[str]) -> bool:
     fields = {str(x).strip().lstrip("\ufeff") for x in row}
     return required.issubset(fields)
+
+
+def csv_safe_cell(value: Any) -> Any:
+    """Return a spreadsheet-safe CSV cell value.
+
+    CSV consumers such as Excel and Google Sheets may interpret cells beginning
+    with formula trigger characters as formulas. Prefixing a single quote keeps
+    the displayed text stable while preserving ordinary numeric values.
+    """
+    if not isinstance(value, str):
+        return value
+    if value.startswith(SPREADSHEET_FORMULA_PREFIXES):
+        return "'" + value
+    return value
 
 
 def load_json(path: str | Path) -> Any:

@@ -22,7 +22,7 @@ from copyspace_guard.core import (  # noqa: E402
     validate_summary_contract,
 )
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
-from copyspace_guard.io import dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
+from copyspace_guard.io import csv_safe_cell, dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
 from copyspace_guard.report import render_html, render_markdown, write_reports  # noqa: E402
 from copyspace_guard.schema import validate_report_contract, validate_schedule_contract  # noqa: E402
 import tools.release_artifacts as release_artifacts  # noqa: E402
@@ -236,6 +236,12 @@ class SchemaFilesTests(unittest.TestCase):
 
 
 class IoAndContractTests(unittest.TestCase):
+    def test_csv_safe_cell_escapes_spreadsheet_formula_prefixes(self):
+        for value in ["=cmd", "+cmd", "-cmd", "@cmd", "\tcmd", "\rcmd"]:
+            self.assertEqual(csv_safe_cell(value), "'" + value)
+        self.assertEqual(csv_safe_cell("safe"), "safe")
+        self.assertEqual(csv_safe_cell(123), 123)
+
     def test_json_config_and_csv_helpers(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -323,18 +329,25 @@ class AnonymizeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             demands = root / "demands.csv"
-            demands.write_text("src_slot,dst_slot,bits_total,tag\nrack-a,rack-b,10,x\nrack-b,rack-c,20,y\n", encoding="utf-8")
+            demands.write_text('src_slot,dst_slot,bits_total,tag\nrack-a,rack-b,10,"=SUM(1,1)"\nrack-b,rack-c,20,+cmd\n', encoding="utf-8")
             mapping = root / "mapping.json"
             demand_out = root / "anon_demands.csv"
             out_map = anonymize_demands_csv(demands, demand_out, mapping)
             self.assertEqual(out_map, {"rack-a": 0, "rack-b": 1, "rack-c": 2})
+            with demand_out.open("r", encoding="utf-8", newline="") as f:
+                demand_rows = list(csv.DictReader(f))
+            self.assertEqual(demand_rows[0]["tag"], "'=SUM(1,1)")
+            self.assertEqual(demand_rows[1]["tag"], "'+cmd")
 
             schedule = root / "schedule.csv"
-            schedule.write_text("tick,src_slot,dst_slot,len_bits\n0,rack-c,rack-a,10\n", encoding="utf-8")
+            schedule.write_text("tick,src_slot,dst_slot,len_bits,note\n0,rack-c,rack-a,10,@note\n", encoding="utf-8")
             sched_out = root / "anon_schedule.csv"
             reused = anonymize_schedule_csv(schedule, sched_out, mapping, mapping_in=mapping)
             self.assertEqual(reused, out_map)
             self.assertIn("2,0", sched_out.read_text(encoding="utf-8"))
+            with sched_out.open("r", encoding="utf-8", newline="") as f:
+                sched_rows = list(csv.DictReader(f))
+            self.assertEqual(sched_rows[0]["note"], "'@note")
 
             bad_mapping = root / "bad_mapping.json"
             bad_mapping.write_text('{"rack-a": -1}', encoding="utf-8")
