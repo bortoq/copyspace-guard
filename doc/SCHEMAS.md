@@ -1,6 +1,6 @@
 # JSON schemas
 
-Copy-Space Guard keeps human-readable contracts in docs and machine-readable JSON schemas in `schemas/`.
+Copy-Space Guard keeps human-readable contracts in `doc/` and machine-readable JSON schemas in `schemas/`.
 
 Schemas currently included:
 

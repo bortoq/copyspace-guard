@@ -1,8 +1,7 @@
 include CHANGELOG.md
 include SECURITY.md
 include src/copyspace_guard/py.typed
-recursive-include docs *.md *.svg
-recursive-include doc *.md *.html *.csv
+recursive-include doc *.md *.svg *.html *.csv
 recursive-include schemas *.json
 recursive-include examples *.csv *.yml
 recursive-include client-package *.md *.csv *.yml *.sh
