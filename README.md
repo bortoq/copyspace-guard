@@ -258,7 +258,7 @@ Known operational caveats:
 
 ## How this maps to the larger project set
 
-- `copy-space` → scheduler, validator, lower-bound gap, CI-gate idea.
+- `copyspace-guard` → scheduler, validator, lower-bound gap, CI-gate idea.
 - `vcopyspace` → future enterprise layer: receipt-based metering, ledger, trace/replay, cost model.
 - `DDAS` → long-term deterministic state-transition foundation.
 
