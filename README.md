@@ -7,11 +7,11 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** is a metadata-only CLI for deterministic data-movement audits and CI regression gates. Current release: **v0.2.3** on PyPI. Status: production-oriented pilot.
+**Copy-Space Guard** checks data-movement plans from metadata only. It validates schedules, measures how far they are from a lower bound, and flags regressions with a CI gate. Current release: **v0.2.3** on PyPI. Status: production-oriented pilot.
 
-It takes a transfer demand matrix (`src_slot,dst_slot,bits_total`), validates schedules under a declared resource model, compares a baseline or customer schedule against a deterministic greedy candidate, and produces sales/engineering reports with lower-bound gap, utilization and estimated savings.
+Give it a transfer matrix like `src_slot,dst_slot,bits_total`, or a real schedule log. It returns pass/fail validation, gap to lower bound, utilization, and estimated savings.
 
-This package is intentionally small and pilot-friendly:
+This package is intentionally small and easy to run locally:
 
 - no external Python dependencies;
 - no payload data required;
@@ -20,9 +20,9 @@ This package is intentionally small and pilot-friendly:
 
 ![Copy-Space Guard report preview](docs/assets/report-preview.svg)
 
-## Product promise
+## Overview
 
-> Give us one transfer trace or demand matrix. In a few days we show whether your data-movement plan is conflict-free, how far it is from a deterministic lower bound, and what CI gate can prevent future regressions.
+> Give the tool one transfer trace or demand matrix. It shows whether the plan is valid, how much work is wasted, and what gate can keep it from regressing.
 
 ## Quickstart
 
@@ -100,13 +100,13 @@ This is a useful baseline for:
 - shuffle/staging/replication analysis;
 - CI regression gates;
 - comparing scheduler strategies;
-- first customer audits where full topology is not yet modeled.
+- first audits where full topology is not yet modeled.
 
-It is not a universal network model. For real pilots, confirm whether the client needs extensions such as READ1_WRITE1, broadcast, topology-aware bandwidth, asymmetric links or tier-aware storage constraints.
+It is not a universal network model. For real deployments, confirm whether the client needs extensions such as READ1_WRITE1, broadcast, topology-aware bandwidth, asymmetric links or tier-aware storage constraints.
 
 ## Commands
 
-### Check local pilot readiness
+### Check local setup
 
 ```bash
 copyspace-guard --version
@@ -172,7 +172,7 @@ copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 3
 
 ## Customer/current schedule input
 
-For a real pilot, the customer may already have an actual schedule. Use CSV:
+If you already have an actual schedule, use CSV:
 
 ```csv
 tick,src_slot,dst_slot,len_bits
@@ -221,7 +221,7 @@ Exit code `0` means pass, exit code `2` means fail.
 - `report_greedy.json` — validation metrics for candidate.
 - `summary.json` — machine-readable comparison summary.
 - `report.md` — human-readable audit report.
-- `report.html` — shareable report for demos and sales calls.
+- `report.html` — shareable report.
 
 ## v0.2.3 boundaries
 
@@ -232,7 +232,7 @@ Included:
 - STRICT1 and READ1_WRITE1 validators;
 - lower-bound gap and utilization metrics;
 - ROI estimates via `roi.yml` or a simple `$ per tick` assumption;
-- sales-ready report artifacts;
+- report artifacts;
 - PyPI publishing through GitHub Actions Trusted Publishing;
 - matrix CI for Python 3.10, 3.11 and 3.12;
 - required CI checks for tests, build, Docker smoke and security scans;
@@ -336,7 +336,7 @@ copyspace-guard analyze --csv examples/kv_cache_movement.csv --bw 1048576 --roi 
 
 ## Client package
 
-See `client-package/` for a minimal package that can be sent to a pilot customer:
+See `client-package/` for a minimal package that can be sent to a customer:
 
 - `README_CLIENT.md`
 - `sample_demands.csv`
