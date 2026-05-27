@@ -269,3 +269,19 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 0)
             data = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(data["ticks"][0][0]["len_bits"], 64)
+
+    def test_audit_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(data["current_label"], "customer_current")
+            self.assertEqual(data["candidate_label"], "customer_current")
+            self.assertTrue((out / "report.md").exists())

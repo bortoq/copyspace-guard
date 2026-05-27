@@ -130,6 +130,16 @@ copyspace-guard doctor --root . --json
 copyspace-guard analyze --csv INPUT.csv --bw 256 --outdir artifacts/run
 ```
 
+### Audit only (no baseline/greedy run)
+
+```bash
+copyspace-guard audit \
+  --demands demands.csv \
+  --bw 256 \
+  --schedule your_schedule.csv \
+  --outdir artifacts/audit
+```
+
 Optional:
 
 ```bash

@@ -146,6 +146,71 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0 if rep_current.status == "PASS" and rep_greedy.status == "PASS" else 2
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    outdir = prepare_output_dir(Path(args.outdir))
+    if args.max_errors is not None and args.max_errors < 0:
+        raise ValueError("--max-errors must be >= 0")
+    if args.bounds_subset_limit < 0:
+        raise ValueError("--bounds-subset-limit must be >= 0")
+    inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
+    if args.schedule_json and args.schedule_csv:
+        raise SystemExit("use only one of --schedule-json or --schedule-csv")
+    if not args.schedule_json and not args.schedule_csv:
+        raise SystemExit("provide one of --schedule-json or --schedule-csv")
+    if args.schedule_json:
+        schedule = load_json(args.schedule_json)
+        rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+    else:
+        schedule = schedule_from_csv(args.schedule_csv, model=str(inst.get("model", "STRICT1")))
+        rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+    if args.max_output_ticks is not None and rep.ticks_total > args.max_output_ticks:
+        raise ValueError(f"customer_current ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+    dump_json(outdir / "instance.json", inst)
+    dump_json(outdir / "schedule_customer_current.json", schedule)
+    write_schedule_csv(outdir / "schedule_customer_current.csv", schedule)
+    dump_json(outdir / "report_customer_current.json", rep.to_dict())
+    summary = {
+        "instance": inst,
+        "current_label": "customer_current",
+        "candidate_label": "customer_current",
+        "reports": {"current": rep.to_dict(), "customer_current": rep.to_dict()},
+        "comparison": {
+            "comparable": True,
+            "comparison_note": "Audit-only mode: no baseline/candidate comparison requested.",
+            "saved_ticks": 0,
+            "saved_ticks_pct": 0.0,
+            "gap_reduction_ticks": 0,
+            "utilization_delta": 0.0,
+            "estimated_savings": 0.0,
+            "cost_per_tick": 0.0,
+        },
+        "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}),
+        "audit": {
+            "audit_only": True,
+            "audit_note": (
+                "gap_to_lower_bound reflects an abstract model without topology. "
+                "If your solver accounts for topology constraints, gap > 0 may be expected."
+            ),
+        },
+        "artifacts": {
+            "instance": "instance.json",
+            "schedule_current": "schedule_customer_current.json",
+            "schedule_current_csv": "schedule_customer_current.csv",
+            "schedule_greedy": None,
+            "schedule_greedy_csv": None,
+            "report_current": "report_customer_current.json",
+            "report_greedy": "report_customer_current.json",
+            "report_markdown": "report.md",
+            "report_html": "report.html",
+        },
+    }
+    dump_json(outdir / "summary.json", summary)
+    write_reports(outdir, summary)
+    print(f"Copy-Space Guard audit written to: {outdir}")
+    print(f"customer_current: status={rep.status} ticks={rep.ticks_total} lb={rep.lower_bound_ticks} gap={rep.gap_to_lower_bound:.6f} util={rep.utilization:.4f}")
+    return 0 if rep.status == "PASS" else 2
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     if args.max_errors is not None and args.max_errors < 0:
         raise ValueError("--max-errors must be >= 0")
@@ -519,6 +584,21 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--max-output-ticks", type=int, default=None, help="fail if any compared report exceeds this tick count")
     a.add_argument("--outdir", default="artifacts/analysis")
     a.set_defaults(func=cmd_analyze)
+
+    au = sub.add_parser("audit", help="audit one provided schedule against demands without baseline/greedy solving")
+    au.add_argument("--demands", required=True, help="CSV with src_slot,dst_slot,bits_total")
+    au.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
+    au.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
+    au.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
+    au.add_argument("--id", default="audit-workload")
+    au.add_argument("--notes", default=None)
+    au.add_argument("--schedule-json", default=None, help="customer schedule JSON")
+    au.add_argument("--schedule-csv", "--schedule", dest="schedule_csv", default=None, help="customer schedule CSV: tick,src_slot,dst_slot,len_bits")
+    au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
+    au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
+    au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
+    au.add_argument("--outdir", default="artifacts/audit")
+    au.set_defaults(func=cmd_audit)
 
     v = sub.add_parser("validate", help="validate an existing schedule against an instance")
     v.add_argument("instance")
