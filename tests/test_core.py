@@ -546,6 +546,9 @@ class SchemaFilesTests(unittest.TestCase):
             Draft202012Validator(schema).validate(obj)
 
     def test_bounds_reason_schema_enum_matches_constants(self):
+        # Order-sensitive: keep this list in sync with
+        # schemas/report_v0.schema.json and schemas/summary_v0.schema.json enums.
+        # If a new reason is added, update constants, schemas, and this list together.
         expected = [
             BOUNDS_REASON_AUTO_EXHAUSTIVE,
             BOUNDS_REASON_AUTO_PARTIAL,

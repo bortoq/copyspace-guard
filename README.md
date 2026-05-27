@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** checks data-movement plans from metadata only. It validates schedules, measures how far they are from a lower bound, and flags regressions with a CI gate. Current release: **v0.2.4** on PyPI. Status: production-oriented pilot.
+**Copy-Space Guard** checks data-movement plans from metadata only. It validates schedules, measures how far they are from a lower bound, and flags regressions with a CI gate. Current release: **v0.2.5** on PyPI. Status: production-oriented pilot.
 
 Give it a transfer matrix like `src_slot,dst_slot,bits_total`, or a real schedule log. It returns pass/fail validation, gap to lower bound, utilization, and estimated savings.
 

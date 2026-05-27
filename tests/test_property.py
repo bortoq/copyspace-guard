@@ -3,7 +3,16 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from copyspace_guard.core import exact_optimal_ticks, lower_bound_components, solve_greedy, validate_schedule
+from copyspace_guard.core import (
+    BOUNDS_REASON_AUTO_EXHAUSTIVE,
+    BOUNDS_REASON_AUTO_PARTIAL,
+    BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+    BOUNDS_REASON_READ1_WRITE1_COMPLETE,
+    exact_optimal_ticks,
+    lower_bound_components,
+    solve_greedy,
+    validate_schedule,
+)
 
 try:
     from hypothesis import HealthCheck, assume, given, settings, strategies as st
@@ -78,6 +87,25 @@ else:
             lbs2 = lower_bound_components(inst)
             self.assertEqual(lbs1["lower_bound_witness"], lbs2["lower_bound_witness"])
             self.assertEqual(lbs1["lower_bound_ticks"], lbs2["lower_bound_ticks"])
+
+        @settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=50, max_demands=20, max_bits=8))
+        def test_reason_complete_invariant_auto_mode(self, inst: dict[str, Any]) -> None:
+            expected = {
+                BOUNDS_REASON_AUTO_EXHAUSTIVE: True,
+                BOUNDS_REASON_AUTO_PARTIAL: False,
+                BOUNDS_REASON_READ1_WRITE1_COMPLETE: True,
+            }
+            lbs = lower_bound_components(inst, strict1_bounds_mode="auto")
+            self.assertEqual(lbs["bounds_complete"], expected[lbs["bounds_complete_reason"]])
+
+        @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=24, max_demands=16, max_bits=8))
+        def test_reason_complete_invariant_fractional_exact_mode(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+            self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_EXACT_FRACTIONAL_MODE)
+            self.assertTrue(lbs["bounds_complete"])
 
 
 if __name__ == "__main__":
