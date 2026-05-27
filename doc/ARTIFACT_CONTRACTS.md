@@ -25,6 +25,8 @@ For `version: 0`:
 - numeric metrics keep the same units;
 - new optional fields may be added with backward-compatible semantics.
 
+In `audit` mode, `summary.json` is still `version: 0`, and may include additional optional `audit` metadata. In that mode, `candidate_label` can equal `customer_current` to indicate audit-only evaluation with no greedy/baseline comparison.
+
 Breaking changes require a new artifact version and migration notes in the changelog.
 
 ## Golden coverage

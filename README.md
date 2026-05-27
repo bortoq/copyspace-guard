@@ -130,6 +130,25 @@ copyspace-guard doctor --root . --json
 copyspace-guard analyze --csv INPUT.csv --bw 256 --outdir artifacts/run
 ```
 
+Common `analyze` options:
+
+```bash
+--slots N
+--id workload-name
+--notes "free text"
+--cost-per-tick 0.02
+--roi roi.yml
+--model STRICT1  # or READ1_WRITE1
+--current-schedule-csv your_schedule.csv
+--current-schedule-json your_schedule.json
+--summary-only
+--bounds-subset-limit 20
+--max-errors 100
+--max-demands 100000
+--max-slots 10000
+--max-output-ticks 1000000
+```
+
 ### Audit only (no baseline/greedy run)
 
 ```bash
@@ -140,22 +159,28 @@ copyspace-guard audit \
   --outdir artifacts/audit
 ```
 
-Optional:
+Common `audit` options:
 
 ```bash
 --slots N
 --id workload-name
 --notes "free text"
---cost-per-tick 0.02
 --model STRICT1  # or READ1_WRITE1
+--schedule-json your_schedule.json
 --bounds-subset-limit 20
 --max-errors 100
---max-demands 100000
---max-slots 10000
 --max-output-ticks 1000000
 ```
 
 `--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
+
+### Import external schedule formats
+
+```bash
+copyspace-guard import-msccl algorithm.xml --out schedule.json
+copyspace-guard import-taccl taccl_output.json --out schedule.json
+copyspace-guard import-csv --csv custom.csv --map tick=step --map src=from --map dst=to --map len=bits --out schedule.json
+```
 
 ### Validate a schedule
 
@@ -273,10 +298,9 @@ Not included yet:
 
 - topology/path selection;
 - real transfer execution;
-- cloud adapter importers;
 - address-level offset validation;
 - VCopySpace receipt ledger integration;
-- topology/path-specific CSV importers beyond the current demand and schedule formats.
+- topology/path-aware importers (current importers normalize schema, but do not model network paths).
 
 Known operational caveats:
 

@@ -1,6 +1,6 @@
 # Customer schedule format
 
-For real pilots, Copy-Space Guard should compare the customer's actual/current schedule against a deterministic candidate schedule.
+For real pilots, Copy-Space Guard should audit the customer's actual/current schedule directly. You can optionally compare it to the deterministic `greedy` candidate.
 
 ## CSV format
 
@@ -31,6 +31,18 @@ copyspace-guard analyze \
 ```
 
 The report will treat `customer_current` as the current schedule and compare it to `greedy`.
+
+## Run audit-only mode (recommended for external solver audit)
+
+```bash
+copyspace-guard audit \
+  --demands demands.csv \
+  --bw 256 \
+  --schedule current_schedule.csv \
+  --outdir artifacts/audit
+```
+
+Use this mode when you want validation + lower-bound gap for the provided schedule without baseline/greedy comparison.
 
 ## Convert to JSON
 
