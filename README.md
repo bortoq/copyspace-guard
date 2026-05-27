@@ -143,6 +143,7 @@ Common `analyze` options:
 --current-schedule-json your_schedule.json
 --summary-only
 --bounds-subset-limit 20
+--bounds-mode auto  # or fractional_exact
 --max-errors 100
 --max-demands 100000
 --max-slots 10000
@@ -168,6 +169,7 @@ Common `audit` options:
 --model STRICT1  # or READ1_WRITE1
 --schedule-json your_schedule.json
 --bounds-subset-limit 20
+--bounds-mode auto  # or fractional_exact
 --max-errors 100
 --max-output-ticks 1000000
 --max-gap 0.15
@@ -177,6 +179,7 @@ Common `audit` options:
 Note: `--max-gap-vs-greedy` runs deterministic `greedy` internally to compute the comparison metric.
 
 `--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
+`--bounds-mode fractional_exact` enables exact odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
 
 ### Import external schedule formats
 

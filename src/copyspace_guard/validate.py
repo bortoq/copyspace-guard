@@ -22,10 +22,15 @@ def _final_report(
     *,
     total_errors: int,
     bounds_subset_limit: int,
+    strict1_bounds_mode: str,
 ) -> Report:
     try:
         slots, bw, _ = validate_instance(inst)
-        lbs = lower_bound_components(inst, exhaustive_subset_limit=bounds_subset_limit)
+        lbs = lower_bound_components(
+            inst,
+            exhaustive_subset_limit=bounds_subset_limit,
+            strict1_bounds_mode=strict1_bounds_mode,
+        )
     except Exception as e:
         return fail_report("INSTANCE", str(e))
     bits_per_tick = bits_total / ticks_total if ticks_total > 0 else 0.0
@@ -67,6 +72,7 @@ def validate_ticks_iter(
     *,
     max_errors: int | None = None,
     bounds_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+    strict1_bounds_mode: str = "auto",
 ) -> Report:
     try:
         slots, bw, _demands = validate_instance(inst)
@@ -178,6 +184,7 @@ def validate_ticks_iter(
         errors,
         total_errors=total_errors,
         bounds_subset_limit=bounds_subset_limit,
+        strict1_bounds_mode=strict1_bounds_mode,
     )
 
 
@@ -187,6 +194,7 @@ def validate_schedule(
     *,
     max_errors: int | None = None,
     bounds_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+    strict1_bounds_mode: str = "auto",
 ) -> Report:
     if not isinstance(sched, dict):
         return fail_report("STRUCT", "schedule must be an object")
@@ -198,7 +206,13 @@ def validate_schedule(
     ticks = sched.get("ticks")
     if not isinstance(ticks, list):
         return fail_report("STRUCT", "schedule.ticks must be a list")
-    return validate_ticks_iter(inst, ticks, max_errors=max_errors, bounds_subset_limit=bounds_subset_limit)
+    return validate_ticks_iter(
+        inst,
+        ticks,
+        max_errors=max_errors,
+        bounds_subset_limit=bounds_subset_limit,
+        strict1_bounds_mode=strict1_bounds_mode,
+    )
 
 
 def validate_schedule_csv(
@@ -208,12 +222,14 @@ def validate_schedule_csv(
     fill_empty_ticks: bool = True,
     max_errors: int | None = None,
     bounds_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+    strict1_bounds_mode: str = "auto",
 ) -> Report:
     return validate_ticks_iter(
         inst,
         iter_schedule_csv_ticks(path, fill_empty_ticks=fill_empty_ticks),
         max_errors=max_errors,
         bounds_subset_limit=bounds_subset_limit,
+        strict1_bounds_mode=strict1_bounds_mode,
     )
 
 

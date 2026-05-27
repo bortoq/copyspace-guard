@@ -9,6 +9,9 @@ from .types import Instance, READ1_WRITE1, STRICT1
 
 DEFAULT_EXHAUSTIVE_SUBSET_LIMIT = 20
 MAX_EXHAUSTIVE_SUBSET_LIMIT = 24
+DEFAULT_STRICT1_BOUNDS_MODE = "auto"
+STRICT1_BOUNDS_MODES = {"auto", "fractional_exact"}
+MAX_FRACTIONAL_EXACT_SLOTS = 24
 
 
 def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, int]]]:
@@ -21,7 +24,12 @@ def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, in
     return slots, bw, model, edges
 
 
-def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_subset_limit: int) -> Dict[str, Any]:
+def _strict1_bounds(
+    slots: int,
+    edges: List[Tuple[int, int, int]],
+    exhaustive_subset_limit: int,
+    strict1_bounds_mode: str,
+) -> Dict[str, Any]:
     total_chunks = sum(c for _s, _t, c in edges)
     deg = [0] * slots
     for s, t, c in edges:
@@ -38,6 +46,60 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
         "tick_capacity_chunks": tick_capacity,
     }
     bounds_complete = slots <= exhaustive_subset_limit
+
+    if strict1_bounds_mode == "fractional_exact":
+        if slots > MAX_FRACTIONAL_EXACT_SLOTS:
+            raise ValueError(
+                f"fractional_exact is limited to <= {MAX_FRACTIONAL_EXACT_SLOTS} slots; got {slots}"
+            )
+        if slots >= 3:
+            w = [[0] * slots for _ in range(slots)]
+            for s, t, c in edges:
+                w[s][t] += c
+                w[t][s] += c
+            internal = [0] * (1 << slots)
+            for mask in range(1, 1 << slots):
+                lowbit = mask & -mask
+                v = lowbit.bit_length() - 1
+                prev = mask ^ lowbit
+                add = 0
+                m = prev
+                while m:
+                    lb = m & -m
+                    u = lb.bit_length() - 1
+                    add += w[v][u]
+                    m ^= lb
+                internal[mask] = internal[prev] + add
+                k = mask.bit_count()
+                if k < 3 or (k % 2 == 0):
+                    continue
+                frac_num = 2 * internal[mask]
+                frac_den = k - 1
+                frac_lb = math.ceil(frac_num / frac_den) if internal[mask] else 0
+                if frac_lb > density_lb:
+                    density_lb = frac_lb
+                    witness = {
+                        "kind": "fractional_exact_odd_subset",
+                        "subset": [i for i in range(slots) if mask & (1 << i)],
+                        "subset_size": k,
+                        "internal_chunks": internal[mask],
+                        "fraction_numerator": frac_num,
+                        "fraction_denominator": frac_den,
+                        "formula": "ceil(2*E(S)/(abs(S)-1))",
+                    }
+        lower = max(degree_lb, capacity_lb, density_lb)
+        return {
+            "degree_lower_bound": degree_lb,
+            "capacity_lower_bound": capacity_lb,
+            "density_lower_bound": density_lb,
+            "lower_bound_ticks": lower,
+            "total_chunks": total_chunks,
+            "tick_capacity_chunks": tick_capacity,
+            "lower_bound_witness": witness,
+            "bounds_complete": slots <= MAX_FRACTIONAL_EXACT_SLOTS,
+            "exhaustive_subset_limit": exhaustive_subset_limit,
+            "strict1_bounds_mode": strict1_bounds_mode,
+        }
 
     if bounds_complete and slots >= 2:
         w = [[0] * slots for _ in range(slots)]
@@ -202,6 +264,7 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
         "lower_bound_witness": witness,
         "bounds_complete": bounds_complete,
         "exhaustive_subset_limit": exhaustive_subset_limit,
+        "strict1_bounds_mode": strict1_bounds_mode,
     }
 
 
@@ -237,17 +300,24 @@ def _read1_write1_bounds(slots: int, edges: List[Tuple[int, int, int]]) -> Dict[
     }
 
 
-def lower_bound_components(inst: Instance, *, exhaustive_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT) -> Dict[str, Any]:
+def lower_bound_components(
+    inst: Instance,
+    *,
+    exhaustive_subset_limit: int = DEFAULT_EXHAUSTIVE_SUBSET_LIMIT,
+    strict1_bounds_mode: str = DEFAULT_STRICT1_BOUNDS_MODE,
+) -> Dict[str, Any]:
     """Return deterministic lower bounds for the instance model."""
     if exhaustive_subset_limit < 0:
         raise ValueError("exhaustive_subset_limit must be >= 0")
     if exhaustive_subset_limit > MAX_EXHAUSTIVE_SUBSET_LIMIT:
         raise ValueError(f"exhaustive_subset_limit {exhaustive_subset_limit} exceeds hard cap {MAX_EXHAUSTIVE_SUBSET_LIMIT}")
+    if strict1_bounds_mode not in STRICT1_BOUNDS_MODES:
+        raise ValueError(f"unsupported strict1_bounds_mode: {strict1_bounds_mode}")
     slots, _bw, model, edges = _chunk_edges(inst)
     if model == READ1_WRITE1:
         out = _read1_write1_bounds(slots, edges)
     else:
-        out = _strict1_bounds(slots, edges, exhaustive_subset_limit)
+        out = _strict1_bounds(slots, edges, exhaustive_subset_limit, strict1_bounds_mode)
     out["model"] = model
     return out
 

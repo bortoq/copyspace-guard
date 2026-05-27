@@ -107,6 +107,42 @@ if __name__ == "__main__":
     unittest.main()
 
 class ModelExtensionTests(unittest.TestCase):
+    def test_fractional_exact_mode_small_instance(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 5,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [
+                {"src_slot": 0, "dst_slot": 1, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 2, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 4, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 2, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 4, "bits_total": 1},
+                {"src_slot": 2, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 2, "dst_slot": 4, "bits_total": 1},
+                {"src_slot": 3, "dst_slot": 4, "bits_total": 1},
+            ],
+        }
+        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        self.assertEqual(lbs["density_lower_bound"], 5)
+        self.assertEqual(lbs["lower_bound_ticks"], 5)
+        self.assertEqual(lbs["strict1_bounds_mode"], "fractional_exact")
+        self.assertIn(lbs["lower_bound_witness"]["kind"], {"full_graph_capacity", "fractional_exact_odd_subset"})
+
+    def test_fractional_exact_mode_rejects_too_many_slots(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 30,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        with self.assertRaisesRegex(ValueError, "fractional_exact is limited"):
+            lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+
     def test_large_strict1_bounds_are_deterministic(self):
         demands = []
         for i in range(12):

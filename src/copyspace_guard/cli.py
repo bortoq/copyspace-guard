@@ -56,14 +56,38 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         if args.current_schedule_json:
             current = load_json(args.current_schedule_json)
             current_label = "customer_current"
-            rep_current = validate_schedule(inst, current, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+            rep_current = validate_schedule(
+                inst,
+                current,
+                max_errors=args.max_errors,
+                bounds_subset_limit=args.bounds_subset_limit,
+                strict1_bounds_mode=args.bounds_mode,
+            )
         elif args.current_schedule_csv:
             current_label = "customer_current"
-            rep_current = validate_schedule_csv(inst, args.current_schedule_csv, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+            rep_current = validate_schedule_csv(
+                inst,
+                args.current_schedule_csv,
+                max_errors=args.max_errors,
+                bounds_subset_limit=args.bounds_subset_limit,
+                strict1_bounds_mode=args.bounds_mode,
+            )
         else:
             current_label = "baseline"
-            rep_current = validate_ticks_iter(inst, iter_baseline(inst), max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
-        rep_greedy = validate_ticks_iter(inst, iter_greedy(inst), max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+            rep_current = validate_ticks_iter(
+                inst,
+                iter_baseline(inst),
+                max_errors=args.max_errors,
+                bounds_subset_limit=args.bounds_subset_limit,
+                strict1_bounds_mode=args.bounds_mode,
+            )
+        rep_greedy = validate_ticks_iter(
+            inst,
+            iter_greedy(inst),
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
     else:
         if args.current_schedule_json:
             current = load_json(args.current_schedule_json)
@@ -75,8 +99,20 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             current = solve_baseline(inst)
             current_label = "baseline"
         greedy = solve_greedy(inst)
-        rep_current = validate_schedule(inst, current, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
-        rep_greedy = validate_schedule(inst, greedy, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+        rep_current = validate_schedule(
+            inst,
+            current,
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
+        rep_greedy = validate_schedule(
+            inst,
+            greedy,
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
     if args.max_output_ticks is not None:
         for label, rep in [(current_label, rep_current), ("greedy", rep_greedy)]:
             if rep.ticks_total > args.max_output_ticks:
@@ -160,10 +196,22 @@ def cmd_audit(args: argparse.Namespace) -> int:
         raise SystemExit("provide one of --schedule-json or --schedule-csv")
     if args.schedule_json:
         schedule = load_json(args.schedule_json)
-        rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+        rep = validate_schedule(
+            inst,
+            schedule,
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
     else:
         schedule = schedule_from_csv(args.schedule_csv, model=str(inst.get("model", "STRICT1")))
-        rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+        rep = validate_schedule(
+            inst,
+            schedule,
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
     if args.max_output_ticks is not None and rep.ticks_total > args.max_output_ticks:
         raise ValueError(f"customer_current ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
     gate_fail_reasons: list[str] = []
@@ -174,7 +222,13 @@ def cmd_audit(args: argparse.Namespace) -> int:
             gate_fail_reasons.append(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} exceeds --max-gap {args.max_gap:.6f}")
     gap_vs_greedy = None
     if args.max_gap_vs_greedy is not None:
-        rep_greedy = validate_ticks_iter(inst, iter_greedy(inst), max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+        rep_greedy = validate_ticks_iter(
+            inst,
+            iter_greedy(inst),
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
         if rep.ticks_total > 0:
             gap_vs_greedy = (rep.ticks_total - rep_greedy.ticks_total) / rep.ticks_total
         else:
@@ -251,8 +305,20 @@ def cmd_compare(args: argparse.Namespace) -> int:
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     sched_a = _load_schedule_auto(args.schedule_a, model=str(inst.get("model", "STRICT1")))
     sched_b = _load_schedule_auto(args.schedule_b, model=str(inst.get("model", "STRICT1")))
-    rep_a = validate_schedule(inst, sched_a, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
-    rep_b = validate_schedule(inst, sched_b, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+    rep_a = validate_schedule(
+        inst,
+        sched_a,
+        max_errors=args.max_errors,
+        bounds_subset_limit=args.bounds_subset_limit,
+        strict1_bounds_mode=args.bounds_mode,
+    )
+    rep_b = validate_schedule(
+        inst,
+        sched_b,
+        max_errors=args.max_errors,
+        bounds_subset_limit=args.bounds_subset_limit,
+        strict1_bounds_mode=args.bounds_mode,
+    )
     if args.max_output_ticks is not None:
         if rep_a.ticks_total > args.max_output_ticks:
             raise ValueError(f"schedule_a ticks_total {rep_a.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
@@ -324,7 +390,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
         raise ValueError("--bounds-subset-limit must be >= 0")
     inst = load_json(args.instance)
     sched = load_json(args.schedule)
-    rep = validate_schedule(inst, sched, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+    rep = validate_schedule(
+        inst,
+        sched,
+        max_errors=args.max_errors,
+        bounds_subset_limit=args.bounds_subset_limit,
+        strict1_bounds_mode=args.bounds_mode,
+    )
     if args.report:
         report_path = prepare_output_file(Path(args.report))
         dump_json(report_path, rep.to_dict())
@@ -806,6 +878,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--current-schedule-csv", default=None, help="optional customer/current schedule CSV: tick,src_slot,dst_slot,len_bits")
     a.add_argument("--summary-only", action="store_true", help="do not write full schedule JSON/CSV artifacts")
     a.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
+    a.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     a.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     a.add_argument("--max-demands", type=int, default=None, help="fail if normalized demand count exceeds this limit")
     a.add_argument("--max-slots", type=int, default=None, help="fail if slot count exceeds this limit")
@@ -823,6 +896,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--schedule-json", default=None, help="customer schedule JSON")
     au.add_argument("--schedule-csv", "--schedule", dest="schedule_csv", default=None, help="customer schedule CSV: tick,src_slot,dst_slot,len_bits")
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
+    au.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
     au.add_argument("--max-gap", type=float, default=None, help="optional CI threshold for gap_to_lower_bound")
@@ -842,6 +916,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
     c.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
     c.add_argument("--bounds-subset-limit", type=int, default=20)
+    c.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     c.add_argument("--max-errors", type=int, default=None)
     c.add_argument("--max-output-ticks", type=int, default=None)
     c.add_argument("--outdir", default="artifacts/compare")
@@ -852,6 +927,7 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("schedule")
     v.add_argument("--report")
     v.add_argument("--bounds-subset-limit", type=int, default=20)
+    v.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto")
     v.add_argument("--max-errors", type=int, default=None)
     v.set_defaults(func=cmd_validate)
 

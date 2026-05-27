@@ -457,6 +457,24 @@ class CliErrorTests(unittest.TestCase):
             self.assertTrue((out / "report_schedule_a.json").exists())
             self.assertTrue((out / "report_schedule_b.json").exists())
 
+    def test_analyze_bounds_mode_fractional_exact(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--bounds-mode", "fractional_exact",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn(
+                data["reports"]["greedy"]["lower_bound_witness"]["kind"],
+                {"full_graph_capacity", "fractional_exact_odd_subset"},
+            )
+
     def test_compare_command_csv_schedules(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "compare"
