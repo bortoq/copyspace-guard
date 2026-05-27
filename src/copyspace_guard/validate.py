@@ -227,6 +227,8 @@ def gate_report(
     reasons: List[str] = []
     if rep.status != "PASS":
         reasons.append(f"status is {rep.status}, expected PASS")
+    if max_gap is not None and not rep.bounds_complete:
+        reasons.append("bounds_complete=false: gap is a lower estimate only")
     if max_gap is not None and rep.gap_to_lower_bound > max_gap:
         reasons.append(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} > max_gap {max_gap:.6f}")
     if min_utilization is not None and rep.utilization < min_utilization:

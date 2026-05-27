@@ -9,6 +9,17 @@ from typing import Any
 from .types import MODEL, MODELS, Schedule
 
 
+def _check_import_limits(path: str | Path, *, max_rows: int | None, max_file_size: int | None) -> None:
+    if max_rows is not None and max_rows < 0:
+        raise ValueError("--max-rows must be >= 0")
+    if max_file_size is not None and max_file_size < 0:
+        raise ValueError("--max-file-size must be >= 0")
+    if max_file_size is not None:
+        size = Path(path).stat().st_size
+        if size > max_file_size:
+            raise ValueError(f"input file size {size} exceeds --max-file-size {max_file_size}")
+
+
 def _as_int(value: Any) -> int:
     if isinstance(value, bool):
         raise ValueError("boolean is not a valid integer value")
@@ -42,7 +53,18 @@ def _schedule_from_rows(rows: list[tuple[int, int, int, int]], *, model: str = M
     return {"version": 0, "model": model, "ticks": ticks}
 
 
-def import_csv_with_map(path: str | Path, *, tick: str, src: str, dst: str, length: str, model: str = MODEL) -> Schedule:
+def import_csv_with_map(
+    path: str | Path,
+    *,
+    tick: str,
+    src: str,
+    dst: str,
+    length: str,
+    model: str = MODEL,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
+) -> Schedule:
+    _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
     rows: list[tuple[int, int, int, int]] = []
     with open(path, "r", encoding="utf-8", newline="") as f:
         rdr = csv.DictReader(f)
@@ -59,6 +81,8 @@ def import_csv_with_map(path: str | Path, *, tick: str, src: str, dst: str, leng
                 rows.append((_as_int(row[tick]), _as_int(row[src]), _as_int(row[dst]), _as_int(row[length])))
             except Exception as e:
                 raise ValueError(f"bad CSV row {i} for mapped schedule fields") from e
+            if max_rows is not None and len(rows) > max_rows:
+                raise ValueError(f"mapped schedule row count exceeds --max-rows {max_rows}")
     return _schedule_from_rows(rows, model=model)
 
 
@@ -95,14 +119,30 @@ def _find_schedule_rows(obj: Any) -> list[tuple[int, int, int, int]]:
     return rows
 
 
-def import_taccl_json(path: str | Path, *, model: str = MODEL) -> Schedule:
+def import_taccl_json(
+    path: str | Path,
+    *,
+    model: str = MODEL,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
+) -> Schedule:
+    _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
     with open(path, "r", encoding="utf-8") as f:
         obj = json.load(f)
     rows = _find_schedule_rows(obj)
+    if max_rows is not None and len(rows) > max_rows:
+        raise ValueError(f"schedule row count exceeds --max-rows {max_rows}")
     return _schedule_from_rows(rows, model=model)
 
 
-def import_msccl_xml(path: str | Path, *, model: str = MODEL) -> Schedule:
+def import_msccl_xml(
+    path: str | Path,
+    *,
+    model: str = MODEL,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
+) -> Schedule:
+    _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
     rows: list[tuple[int, int, int, int]] = []
     parser = expat.ParserCreate()
 
@@ -114,6 +154,8 @@ def import_msccl_xml(path: str | Path, *, model: str = MODEL) -> Schedule:
         if tick is None or src is None or dst is None or size is None:
             return
         rows.append((_as_int(tick), _as_int(src), _as_int(dst), _as_int(size)))
+        if max_rows is not None and len(rows) > max_rows:
+            raise ValueError(f"schedule row count exceeds --max-rows {max_rows}")
 
     parser.StartElementHandler = on_start
     with open(path, "rb") as f:

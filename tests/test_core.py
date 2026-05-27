@@ -21,6 +21,7 @@ from copyspace_guard.core import (  # noqa: E402
     validate_schedule,
     validate_summary_contract,
 )
+from copyspace_guard.types import Report  # noqa: E402
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
 from copyspace_guard.io import csv_safe_cell, dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
 from copyspace_guard.report import render_html, render_markdown, write_reports  # noqa: E402
@@ -151,6 +152,31 @@ class ModelExtensionTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "hard cap"):
             lower_bound_components(inst, exhaustive_subset_limit=MAX_EXHAUSTIVE_SUBSET_LIMIT + 1)
+
+    def test_gate_warns_when_bounds_incomplete_and_max_gap_set(self):
+        rep = Report(
+            status="PASS",
+            version=0,
+            model="STRICT1",
+            errors=[],
+            ticks_total=10,
+            bits_total=10,
+            bits_per_tick=1.0,
+            expected_bits_per_tick=1,
+            utilization=1.0,
+            degree_lower_bound=8,
+            capacity_lower_bound=8,
+            density_lower_bound=8,
+            lower_bound_ticks=8,
+            gap_ticks=2,
+            gap_to_lower_bound=0.25,
+            bounds_complete=False,
+            total_errors=0,
+            errors_truncated=False,
+        )
+        ok, reasons = gate_report(rep, max_gap=0.5)
+        self.assertFalse(ok)
+        self.assertTrue(any("bounds_complete=false" in r for r in reasons))
 
     def test_fractional_relaxation_improves_large_strict1_bound(self):
         demands = []

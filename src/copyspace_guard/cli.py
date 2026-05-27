@@ -249,7 +249,7 @@ def cmd_schedule_csv_to_json(args: argparse.Namespace) -> int:
 
 
 def cmd_import_msccl(args: argparse.Namespace) -> int:
-    sched = import_msccl_xml(args.xml, model=args.model)
+    sched = import_msccl_xml(args.xml, model=args.model, max_rows=args.max_rows, max_file_size=args.max_file_size)
     out_path = prepare_output_file(Path(args.out))
     dump_json(out_path, sched)
     print(f"schedule JSON written to: {out_path}")
@@ -257,7 +257,7 @@ def cmd_import_msccl(args: argparse.Namespace) -> int:
 
 
 def cmd_import_taccl(args: argparse.Namespace) -> int:
-    sched = import_taccl_json(args.json, model=args.model)
+    sched = import_taccl_json(args.json, model=args.model, max_rows=args.max_rows, max_file_size=args.max_file_size)
     out_path = prepare_output_file(Path(args.out))
     dump_json(out_path, sched)
     print(f"schedule JSON written to: {out_path}")
@@ -281,6 +281,8 @@ def cmd_import_csv(args: argparse.Namespace) -> int:
         dst=mapping["dst"],
         length=mapping["len"],
         model=args.model,
+        max_rows=args.max_rows,
+        max_file_size=args.max_file_size,
     )
     out_path = prepare_output_file(Path(args.out))
     dump_json(out_path, sched)
@@ -624,12 +626,16 @@ def build_parser() -> argparse.ArgumentParser:
     im.add_argument("xml")
     im.add_argument("--out", required=True)
     im.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    im.add_argument("--max-rows", type=int, default=None)
+    im.add_argument("--max-file-size", type=int, default=None)
     im.set_defaults(func=cmd_import_msccl)
 
     it = sub.add_parser("import-taccl", help="import a TACCL JSON schedule into schedule JSON")
     it.add_argument("json")
     it.add_argument("--out", required=True)
     it.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    it.add_argument("--max-rows", type=int, default=None)
+    it.add_argument("--max-file-size", type=int, default=None)
     it.set_defaults(func=cmd_import_taccl)
 
     ic = sub.add_parser("import-csv", help="import custom schedule CSV into schedule JSON with explicit column mapping")
@@ -637,6 +643,8 @@ def build_parser() -> argparse.ArgumentParser:
     ic.add_argument("--map", action="append", default=[], help="mapping tokens: tick=col src=col dst=col len=col")
     ic.add_argument("--out", required=True)
     ic.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    ic.add_argument("--max-rows", type=int, default=None)
+    ic.add_argument("--max-file-size", type=int, default=None)
     ic.set_defaults(func=cmd_import_csv)
 
     va = sub.add_parser("validate-artifact", help="validate a generated v0 JSON artifact contract")

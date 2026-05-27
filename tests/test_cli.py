@@ -285,3 +285,28 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(data["current_label"], "customer_current")
             self.assertEqual(data["candidate_label"], "customer_current")
             self.assertTrue((out / "report.md").exists())
+
+    def test_import_commands_limits_and_errors(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            csv_path = root / "custom.csv"
+            csv_path.write_text("step,from,to,bits\n0,0,1,8\n1,1,2,8\n", encoding="utf-8")
+            rc = run_cli(
+                "import-csv",
+                "--csv", str(csv_path),
+                "--map", "tick=step",
+                "--map", "src=from",
+                "--map", "dst=to",
+                "--map", "len=bits",
+                "--max-rows", "1",
+                "--out", str(root / "out.json"),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("--max-rows", rc.stderr)
+
+            bad_xml = root / "bad.xml"
+            bad_xml.write_text("<algo><op></algo>", encoding="utf-8")
+            rc = run_cli("import-msccl", str(bad_xml), "--out", str(root / "x.json"), check=False)
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("ERROR:", rc.stderr)

@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from copyspace_guard.importers import import_csv_with_map, import_msccl_xml, import_taccl_json
+
+
+class ImportersTests(unittest.TestCase):
+    def test_import_csv_with_map_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / "custom.csv"
+            p.write_text("step,from,to,bits\n0,0,1,8\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing CSV columns"):
+                import_csv_with_map(p, tick="tick", src="from", dst="to", length="bits")
+
+    def test_import_taccl_json_empty_or_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            empty = root / "empty.json"
+            empty.write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "no schedule rows found"):
+                import_taccl_json(empty)
+
+            bad = root / "bad.json"
+            bad.write_text("{", encoding="utf-8")
+            with self.assertRaises(Exception):
+                import_taccl_json(bad)
+
+    def test_import_msccl_xml_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            bad = root / "bad.xml"
+            bad.write_text("<algo><op></algo>", encoding="utf-8")
+            with self.assertRaises(Exception):
+                import_msccl_xml(bad)
+
+    def test_importers_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            csv_path = root / "custom.csv"
+            csv_path.write_text("step,from,to,bits\n0,0,1,8\n1,1,2,8\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "--max-rows"):
+                import_csv_with_map(csv_path, tick="step", src="from", dst="to", length="bits", max_rows=1)
+            with self.assertRaisesRegex(ValueError, "--max-file-size"):
+                import_csv_with_map(csv_path, tick="step", src="from", dst="to", length="bits", max_file_size=1)
+
+            xml_path = root / "algo.xml"
+            xml_path.write_text("<algo><op step='0' src='0' dst='1' cnt='1'/><op step='1' src='1' dst='2' cnt='1'/></algo>", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "--max-rows"):
+                import_msccl_xml(xml_path, max_rows=1)
+
+            json_path = root / "taccl.json"
+            json_path.write_text(json.dumps({"ops": [{"step": 0, "from": 0, "to": 1, "bits": 1}, {"step": 1, "from": 1, "to": 2, "bits": 1}]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "--max-rows"):
+                import_taccl_json(json_path, max_rows=1)
+
+
+if __name__ == "__main__":
+    unittest.main()
