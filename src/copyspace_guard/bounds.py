@@ -12,6 +12,10 @@ MAX_EXHAUSTIVE_SUBSET_LIMIT = 24
 DEFAULT_STRICT1_BOUNDS_MODE = "auto"
 STRICT1_BOUNDS_MODES = {"auto", "fractional_exact"}
 MAX_FRACTIONAL_EXACT_SLOTS = 24
+BOUNDS_REASON_AUTO_EXHAUSTIVE = "auto_exhaustive"
+BOUNDS_REASON_AUTO_PARTIAL = "auto_partial"
+BOUNDS_REASON_EXACT_FRACTIONAL_MODE = "exact_fractional_mode"
+BOUNDS_REASON_READ1_WRITE1_COMPLETE = "read1_write1_complete"
 
 
 def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, int]]]:
@@ -32,7 +36,8 @@ def _build_weight_matrix(slots: int, edges: List[Tuple[int, int, int]]) -> List[
     return w
 
 
-def _compute_internal_edge_sums(w: List[List[int]], n: int) -> List[int]:
+def _compute_internal_edge_sums(w: List[List[int]]) -> List[int]:
+    n = len(w)
     internal = [0] * (1 << n)
     for mask in range(1, 1 << n):
         lowbit = mask & -mask
@@ -51,7 +56,7 @@ def _compute_internal_edge_sums(w: List[List[int]], n: int) -> List[int]:
 
 def _compute_edge_internal(slots: int, edges: List[Tuple[int, int, int]]) -> Tuple[List[List[int]], List[int]]:
     w = _build_weight_matrix(slots, edges)
-    return w, _compute_internal_edge_sums(w, slots)
+    return w, _compute_internal_edge_sums(w)
 
 
 def _strict1_bounds(
@@ -76,7 +81,7 @@ def _strict1_bounds(
         "tick_capacity_chunks": tick_capacity,
     }
     bounds_complete = slots <= exhaustive_subset_limit
-    bounds_complete_reason = "auto_exhaustive" if bounds_complete else "auto_partial"
+    bounds_complete_reason = BOUNDS_REASON_AUTO_EXHAUSTIVE if bounds_complete else BOUNDS_REASON_AUTO_PARTIAL
 
     if strict1_bounds_mode == "fractional_exact":
         if slots > MAX_FRACTIONAL_EXACT_SLOTS:
@@ -84,8 +89,7 @@ def _strict1_bounds(
                 f"fractional_exact is limited to <= {MAX_FRACTIONAL_EXACT_SLOTS} slots; got {slots}"
             )
         if slots >= 3:
-            _w, internal = _compute_edge_internal(slots, edges)
-            lp_lb = 0
+            _, internal = _compute_edge_internal(slots, edges)
             frac_lb = 0
             frac_num = 0
             frac_den = 1
@@ -123,7 +127,7 @@ def _strict1_bounds(
             "tick_capacity_chunks": tick_capacity,
             "lower_bound_witness": witness,
             "bounds_complete": slots <= MAX_FRACTIONAL_EXACT_SLOTS,
-            "bounds_complete_reason": "exact_fractional_mode",
+            "bounds_complete_reason": BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
             "exhaustive_subset_limit": exhaustive_subset_limit,
             "strict1_bounds_mode": strict1_bounds_mode,
         }
@@ -234,7 +238,7 @@ def _strict1_bounds(
                 wc[i][j] += c
                 wc[j][i] += c
         if core_size >= 3:
-            internal = _compute_internal_edge_sums(wc, core_size)
+            internal = _compute_internal_edge_sums(wc)
             lp_lb = 0
             for mask in range(1, 1 << core_size):
                 k = mask.bit_count()
@@ -296,7 +300,7 @@ def _read1_write1_bounds(slots: int, edges: List[Tuple[int, int, int]]) -> Dict[
         "tick_capacity_chunks": tick_capacity,
         "lower_bound_witness": witness,
         "bounds_complete": True,
-        "bounds_complete_reason": "read1_write1_complete",
+        "bounds_complete_reason": BOUNDS_REASON_READ1_WRITE1_COMPLETE,
         "exhaustive_subset_limit": None,
     }
 

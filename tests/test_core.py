@@ -249,6 +249,59 @@ class ModelExtensionTests(unittest.TestCase):
             {"full_graph_capacity", "subset_density_heuristic"},
         )
 
+    def test_bounds_complete_reason_all_paths(self):
+        strict_small = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 4,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        auto_exhaustive = lower_bound_components(strict_small, strict1_bounds_mode="auto")
+        self.assertTrue(auto_exhaustive["bounds_complete"])
+        self.assertEqual(auto_exhaustive["bounds_complete_reason"], "auto_exhaustive")
+
+        strict_large = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 32,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        auto_partial = lower_bound_components(strict_large, strict1_bounds_mode="auto")
+        self.assertFalse(auto_partial["bounds_complete"])
+        self.assertEqual(auto_partial["bounds_complete_reason"], "auto_partial")
+
+        frac_exact = lower_bound_components(strict_small, strict1_bounds_mode="fractional_exact")
+        self.assertTrue(frac_exact["bounds_complete"])
+        self.assertEqual(frac_exact["bounds_complete_reason"], "exact_fractional_mode")
+
+        rw1 = {
+            "version": 0,
+            "model": "READ1_WRITE1",
+            "slots": 4,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        rw1_lbs = lower_bound_components(rw1, strict1_bounds_mode="auto")
+        self.assertTrue(rw1_lbs["bounds_complete"])
+        self.assertEqual(rw1_lbs["bounds_complete_reason"], "read1_write1_complete")
+
+    def test_report_contains_bounds_mode_and_reason(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 4,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        rep = validate_schedule(inst, solve_greedy(inst), strict1_bounds_mode="auto")
+        self.assertEqual(rep.bounds_mode, "auto")
+        self.assertEqual(rep.bounds_complete_reason, "auto_exhaustive")
+        data = rep.to_dict()
+        self.assertIn("bounds_mode", data)
+        self.assertIn("bounds_complete_reason", data)
+
     def test_bounds_limit_has_hard_cap(self):
         inst = {
             "version": 0,

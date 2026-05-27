@@ -17,6 +17,9 @@ Highlights:
 - Unified `audit` gate-failure behavior to explicit gate reasons with exit code `2`.
 - Added explicit test coverage for gate warning visibility when `bounds_complete=false`.
 - Added a `fractional_exact` STRICT1 bounds mode (exact odd-subset fractional lower bound with guarded slot limit).
+- Refactored internal edge-sum helper contract to derive matrix size internally (removes unsafe `n` argument).
+- Added machine-readable report fields `bounds_mode` and `bounds_complete_reason`, with schema validation support.
+- Added test coverage for all `bounds_complete_reason` paths and report serialization of new fields.
 
 ## v0.2.4 — 2026-05-27
 

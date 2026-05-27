@@ -185,6 +185,10 @@ Bounds mode guidance:
 - `fractional_exact`: exact odd-subset fractional lower bound for STRICT1 with guard `slots <= 24`.
 - Use `fractional_exact` for higher-confidence small/medium runs; use `auto` for large production runs.
 
+`report.json` also includes:
+- `bounds_mode`: the mode used for bound computation.
+- `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `read1_write1_complete`.
+
 ### Import external schedule formats
 
 ```bash
