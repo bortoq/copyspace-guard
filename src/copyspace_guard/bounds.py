@@ -117,8 +117,7 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
                 candidate_seeds.append(node)
         for seed in candidate_seeds:
             subset = {seed}
-            remaining = set(range(slots))
-            remaining.remove(seed)
+            remaining = [node for node in range(slots) if node != seed]
             internal_chunks = 0
             while remaining:
                 best_node = None
@@ -127,13 +126,13 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
                     gain = 0
                     for u in subset:
                         gain += w[node][u]
-                    if gain > best_gain:
+                    if gain > best_gain or (gain == best_gain and (best_node is None or node < best_node)):
                         best_gain = gain
                         best_node = node
                 if best_node is None:
                     break
                 subset.add(best_node)
-                remaining.remove(best_node)
+                remaining = [node for node in remaining if node != best_node]
                 internal_chunks += max(best_gain, 0)
                 k = len(subset)
                 if k >= 3 and (k % 2 == 1):
