@@ -74,6 +74,21 @@ def roi_section(summary: Dict[str, Any]) -> str:
     roi = summary.get("roi") or {}
     if not roi or roi.get("cost_per_tick", 0) <= 0:
         return """## ROI model\n\nNo ROI configuration was provided. Add `--roi roi.yml` or `--cost-per-tick` to convert saved ticks into business impact.\n"""
+    practical = roi.get("practical") or {}
+    theoretical = roi.get("theoretical_max") or {}
+    if practical and theoretical:
+        return f"""## ROI model
+
+| ROI metric | Practical (vs greedy) | Theoretical max (vs lower bound) |
+|---|---:|---:|
+| Saved ticks per run | {practical.get('saved_ticks', 0):,.2f} | {theoretical.get('saved_ticks', 0):,.2f} |
+| Saved seconds per run | {practical.get('saved_seconds_per_run', 0):,.2f} | {theoretical.get('saved_seconds_per_run', 0):,.2f} |
+| Savings per run | {money(practical.get('savings_per_run_usd', 0))} | {money(theoretical.get('savings_per_run_usd', 0))} |
+| Savings per month | {money(practical.get('savings_per_month_usd', 0))} | {money(theoretical.get('savings_per_month_usd', 0))} |
+| Savings per year | {money(practical.get('savings_per_year_usd', 0))} | {money(theoretical.get('savings_per_year_usd', 0))} |
+
+Note: theoretical max is an upper estimate from the lower bound and may be unreachable in practice.
+"""
     return f"""## ROI model
 
 | ROI metric | Value |
@@ -203,6 +218,7 @@ The {current_label_text} schedule is treated as the current strategy. The {candi
 1. Replace the demo demand CSV with one real trace from the target system.
 2. Confirm whether {model} matches the system constraints or extend the model.
 3. Add this report as a CI regression gate: fail if `ticks_total`, `gap_to_lower_bound`, or utilization regress beyond agreed thresholds.
+   For large instances, prefer `--max-gap-vs-greedy` as the primary metric.
 4. If savings are material, build a customer-specific importer and compare the customer's scheduler against multiple candidate strategies.
 
 ## Files produced

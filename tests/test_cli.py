@@ -345,6 +345,14 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(data["candidate_label"], "customer_current")
             self.assertTrue((out / "report.md").exists())
             self.assertIn("gap_vs_greedy", data.get("audit", {}))
+            rep = json.loads((out / "report_customer_current.json").read_text(encoding="utf-8"))
+            self.assertIn("gap_reliability", rep)
+            self.assertIn("gap_practical", rep)
+            self.assertIsInstance(rep["gap_practical"], float)
+            self.assertIn("practical", data.get("roi", {}))
+            self.assertIn("theoretical_max", data.get("roi", {}))
+            self.assertIn("practical_gap=", rc.stdout)
+            self.assertIn("theoretical_gap=", rc.stdout)
 
     def test_audit_bounds_mode_fractional_exact(self):
         with tempfile.TemporaryDirectory() as td:

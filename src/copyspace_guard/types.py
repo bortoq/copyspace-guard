@@ -32,6 +32,8 @@ class Report:
     lower_bound_ticks: int = 0
     gap_ticks: int = 0
     gap_to_lower_bound: float = 0.0
+    gap_reliability: str | None = None
+    gap_practical: float | None = None
     lower_bound_witness: Dict[str, Any] = field(default_factory=dict)
     bounds_complete: bool = True
     bounds_mode: str | None = None

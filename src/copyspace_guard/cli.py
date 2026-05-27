@@ -131,7 +131,10 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         roi_config = loaded_roi.get("roi", loaded_roi)
     cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
     comp = compare_reports(rep_current, rep_greedy, cost_per_tick)
-    roi_summary = compute_roi(comp, roi_config)
+    roi_summary = compute_roi(comp, roi_config, theoretical_saved_ticks=max(rep_current.gap_ticks, 0))
+
+    rep_current_dict = rep_current.to_dict()
+    rep_greedy_dict = rep_greedy.to_dict()
 
     dump_json(outdir / "instance.json", inst)
     if not args.summary_only:
@@ -141,9 +144,13 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         write_schedule_csv(outdir / f"schedule_{current_label}.csv", current)
         dump_json(outdir / "schedule_greedy.json", greedy)
         write_schedule_csv(outdir / "schedule_greedy.csv", greedy)
-    dump_json(outdir / f"report_{current_label}.json", rep_current.to_dict())
-    dump_json(outdir / "report_greedy.json", rep_greedy.to_dict())
-    reports = {"greedy": rep_greedy.to_dict(), "current": rep_current.to_dict(), current_label: rep_current.to_dict()}
+    if current_label == "customer_current":
+        customer_ticks = rep_current.ticks_total
+        gap_vs_greedy = 0.0 if customer_ticks <= 0 else (customer_ticks - rep_greedy.ticks_total) / customer_ticks
+        rep_current_dict["gap_practical"] = gap_vs_greedy
+    dump_json(outdir / f"report_{current_label}.json", rep_current_dict)
+    dump_json(outdir / "report_greedy.json", rep_greedy_dict)
+    reports = {"greedy": rep_greedy_dict, "current": rep_current_dict, current_label: rep_current_dict}
     if current_label == "baseline":
         reports["baseline"] = rep_current.to_dict()
     summary = {
@@ -171,8 +178,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         },
     }
     if current_label == "customer_current":
-        customer_ticks = rep_current.ticks_total
-        gap_vs_greedy = 0.0 if customer_ticks <= 0 else (customer_ticks - rep_greedy.ticks_total) / customer_ticks
         summary["audit"] = {
             "audit_note": (
                 "gap_to_lower_bound reflects an abstract model without topology. "
@@ -223,36 +228,38 @@ def cmd_audit(args: argparse.Namespace) -> int:
         )
     if args.max_output_ticks is not None and rep.ticks_total > args.max_output_ticks:
         raise ValueError(f"customer_current ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+    rep_greedy = validate_ticks_iter(
+        inst,
+        iter_greedy(inst),
+        max_errors=args.max_errors,
+        bounds_subset_limit=args.bounds_subset_limit,
+        strict1_bounds_mode=args.bounds_mode,
+    )
+    if rep.ticks_total > 0:
+        gap_vs_greedy = (rep.ticks_total - rep_greedy.ticks_total) / rep.ticks_total
+    else:
+        gap_vs_greedy = 0.0
+    rep_dict = rep.to_dict()
+    rep_dict["gap_practical"] = gap_vs_greedy
+
     gate_fail_reasons: list[str] = []
     if args.max_gap is not None:
         if not rep.bounds_complete:
             gate_fail_reasons.append("bounds_complete=false: gap is a lower estimate only; use --max-gap-vs-greedy or relax threshold")
         elif rep.gap_to_lower_bound > args.max_gap:
             gate_fail_reasons.append(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} exceeds --max-gap {args.max_gap:.6f}")
-    gap_vs_greedy = None
     if args.max_gap_vs_greedy is not None:
-        rep_greedy = validate_ticks_iter(
-            inst,
-            iter_greedy(inst),
-            max_errors=args.max_errors,
-            bounds_subset_limit=args.bounds_subset_limit,
-            strict1_bounds_mode=args.bounds_mode,
-        )
-        if rep.ticks_total > 0:
-            gap_vs_greedy = (rep.ticks_total - rep_greedy.ticks_total) / rep.ticks_total
-        else:
-            gap_vs_greedy = 0.0
         if gap_vs_greedy > args.max_gap_vs_greedy:
             gate_fail_reasons.append(f"gap_vs_greedy {gap_vs_greedy:.6f} exceeds --max-gap-vs-greedy {args.max_gap_vs_greedy:.6f}")
     dump_json(outdir / "instance.json", inst)
     dump_json(outdir / "schedule_customer_current.json", schedule)
     write_schedule_csv(outdir / "schedule_customer_current.csv", schedule)
-    dump_json(outdir / "report_customer_current.json", rep.to_dict())
+    dump_json(outdir / "report_customer_current.json", rep_dict)
     summary = {
         "instance": inst,
         "current_label": "customer_current",
         "candidate_label": "customer_current",
-        "reports": {"current": rep.to_dict(), "customer_current": rep.to_dict()},
+        "reports": {"current": rep_dict, "customer_current": rep_dict},
         "comparison": {
             "comparable": True,
             "comparison_note": "Audit-only mode: no baseline/candidate comparison requested.",
@@ -263,7 +270,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
             "estimated_savings": 0.0,
             "cost_per_tick": 0.0,
         },
-        "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}),
+        "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}, theoretical_saved_ticks=max(rep.gap_ticks, 0)),
         "audit": {
             "audit_only": True,
             "audit_note": (
@@ -287,9 +294,12 @@ def cmd_audit(args: argparse.Namespace) -> int:
     dump_json(outdir / "summary.json", summary)
     write_reports(outdir, summary)
     print(f"Copy-Space Guard audit written to: {outdir}")
-    print(f"customer_current: status={rep.status} ticks={rep.ticks_total} lb={rep.lower_bound_ticks} gap={rep.gap_to_lower_bound:.6f} util={rep.utilization:.4f}")
-    if gap_vs_greedy is not None:
-        print(f"gap_vs_greedy={gap_vs_greedy:.6f}")
+    print(f"customer_current: status={rep.status} ticks={rep.ticks_total} lb={rep.lower_bound_ticks} util={rep.utilization:.4f}")
+    print(f"practical_gap={gap_vs_greedy:.6f} (vs greedy, always reliable)")
+    print(
+        f"theoretical_gap={rep.gap_to_lower_bound:.6f} "
+        f"(vs lower bound, {'exact' if rep.gap_reliability == 'exact' else 'lower estimate'})"
+    )
     if gate_fail_reasons:
         print("AUDIT GATE FAIL", file=sys.stderr)
         for reason in gate_fail_reasons:
@@ -341,7 +351,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
         roi_config = loaded_roi.get("roi", loaded_roi)
     cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
     comp = compare_reports(rep_a, rep_b, cost_per_tick)
-    roi_summary = compute_roi(comp, roi_config)
+    roi_summary = compute_roi(comp, roi_config, theoretical_saved_ticks=max(rep_a.gap_ticks, 0))
 
     dump_json(outdir / "instance.json", inst)
     dump_json(outdir / "schedule_schedule_a.json", sched_a)

@@ -21,6 +21,8 @@
     "lower_bound_ticks": {"type": "integer", "minimum": 0},
     "gap_ticks": {"type": "integer"},
     "gap_to_lower_bound": {"type": "number"},
+    "gap_reliability": {"type": ["string", "null"], "enum": ["exact", "lower_estimate", null]},
+    "gap_practical": {"type": ["number", "null"]},
     "lower_bound_witness": {"type": "object"},
     "bounds_complete": {"type": "boolean"},
     "bounds_mode": {"type": ["string", "null"], "enum": ["auto", "fractional_exact", null]},

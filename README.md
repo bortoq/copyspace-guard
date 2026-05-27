@@ -26,6 +26,20 @@ This package is intentionally small and easy to run locally:
 
 ## Quickstart
 
+## Primary CI Metric
+
+For reliable CI gating at any scale, prefer `gap_vs_greedy`:
+
+```bash
+copyspace-guard audit \
+  --demands demands.csv \
+  --bw 256 \
+  --schedule your_schedule.csv \
+  --max-gap-vs-greedy 0.15
+```
+
+For small STRICT1 instances (exhaustive bound path), `--max-gap` is also exact and useful as a secondary check.
+
 Install from PyPI:
 
 ```bash
@@ -113,6 +127,20 @@ This is a useful baseline for:
 - first audits where full topology is not yet modeled.
 
 It is not a universal network model. For real deployments, confirm whether the client needs extensions such as READ1_WRITE1, broadcast, topology-aware bandwidth, asymmetric links or tier-aware storage constraints.
+
+## Scope And Limitations
+
+`copyspace-guard` audits abstract transfer structure only.
+
+It does not model:
+- network topology;
+- routing/path selection;
+- asymmetric link bandwidth;
+- runtime latency/jitter;
+- multi-NIC/multi-queue behavior.
+
+For large STRICT1 slot counts, `gap_to_lower_bound` can be a lower estimate only.
+Use `gap_vs_greedy` as the primary CI metric in those cases.
 
 ## Commands
 

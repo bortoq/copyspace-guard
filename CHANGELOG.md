@@ -22,6 +22,9 @@ Highlights:
 - Added test coverage for all `bounds_complete_reason` paths and report serialization of new fields.
 - Exported public bounds reason constants for API consumers.
 - Improved gate failure text for incomplete bounds with explicit reason tag and `--max-gap-vs-greedy` guidance.
+- Promoted `gap_vs_greedy` as the primary practical metric in audit output and docs.
+- Added report fields `gap_reliability` and `gap_practical`.
+- Split ROI into `practical` (vs greedy) and `theoretical_max` (vs lower bound), while keeping backward-compatible flat fields.
 
 ## v0.2.4 — 2026-05-27
 

@@ -46,9 +46,7 @@ def compare_reports(current: Report, candidate: Report, cost_per_tick: float = 0
     }
 
 
-def compute_roi(comparison: Dict[str, Any], roi: Dict[str, Any] | None) -> Dict[str, Any]:
-    roi = dict(roi or {})
-    saved_ticks = float(comparison.get("saved_ticks", 0.0)) if comparison.get("comparable", True) else 0.0
+def _roi_block(saved_ticks: float, roi: Dict[str, Any]) -> Dict[str, Any]:
     tick_seconds = float(roi.get("tick_seconds", 1.0))
     runs_per_day = float(roi.get("runs_per_day", 1.0))
     days_per_month = float(roi.get("days_per_month", 30.0))
@@ -60,15 +58,52 @@ def compute_roi(comparison: Dict[str, Any], roi: Dict[str, Any] | None) -> Dict[
     monthly_runs = runs_per_day * days_per_month
     yearly_runs = monthly_runs * months_per_year
     return {
-        "inputs": roi,
-        "cost_per_tick": cost_tick,
-        "saved_ticks_per_run": saved_ticks,
+        "saved_ticks": saved_ticks,
         "saved_seconds_per_run": saved_seconds_per_run,
         "saved_hours_per_run": saved_hours_per_run,
         "savings_per_run_usd": savings_per_run,
+        "savings_per_month_usd": savings_per_run * monthly_runs,
+        "savings_per_year_usd": savings_per_run * yearly_runs,
+    }
+
+
+def compute_roi(
+    comparison: Dict[str, Any],
+    roi: Dict[str, Any] | None,
+    *,
+    theoretical_saved_ticks: float | None = None,
+) -> Dict[str, Any]:
+    roi = dict(roi or {})
+    saved_ticks = float(comparison.get("saved_ticks", 0.0)) if comparison.get("comparable", True) else 0.0
+    theo_ticks = float(theoretical_saved_ticks if theoretical_saved_ticks is not None else 0.0)
+    tick_seconds = float(roi.get("tick_seconds", 1.0))
+    runs_per_day = float(roi.get("runs_per_day", 1.0))
+    days_per_month = float(roi.get("days_per_month", 30.0))
+    months_per_year = float(roi.get("months_per_year", 12.0))
+    cost_tick = roi_cost_per_tick(roi)
+    monthly_runs = runs_per_day * days_per_month
+    yearly_runs = monthly_runs * months_per_year
+    practical = _roi_block(saved_ticks, roi)
+    theoretical_max = _roi_block(theo_ticks, roi)
+    return {
+        "inputs": roi,
+        "cost_per_tick": cost_tick,
+        "saved_ticks_per_run": saved_ticks,  # backward-compatible flat fields
+        "saved_seconds_per_run": practical["saved_seconds_per_run"],
+        "saved_hours_per_run": practical["saved_hours_per_run"],
+        "savings_per_run_usd": practical["savings_per_run_usd"],
         "runs_per_day": runs_per_day,
         "monthly_runs": monthly_runs,
         "yearly_runs": yearly_runs,
-        "savings_per_month_usd": savings_per_run * monthly_runs,
-        "savings_per_year_usd": savings_per_run * yearly_runs,
+        "savings_per_month_usd": practical["savings_per_month_usd"],
+        "savings_per_year_usd": practical["savings_per_year_usd"],
+        "practical": {
+            "description": "vs greedy (practical switch target)",
+            **practical,
+        },
+        "theoretical_max": {
+            "description": "vs lower bound (upper estimate, may be unreachable)",
+            **theoretical_max,
+            "note": "actual savings cannot exceed this but may be less",
+        },
     }

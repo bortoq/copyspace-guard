@@ -58,6 +58,8 @@ def _final_report(
         lower_bound_ticks=lb,
         gap_ticks=gap,
         gap_to_lower_bound=gap_ratio,
+        gap_reliability="exact" if bool(lbs.get("bounds_complete", True)) else "lower_estimate",
+        gap_practical=None,
         lower_bound_witness=dict(lbs.get("lower_bound_witness", {})),
         bounds_complete=bool(lbs.get("bounds_complete", True)),
         bounds_mode=cast(str, lbs.get("strict1_bounds_mode")) if "strict1_bounds_mode" in lbs else None,
