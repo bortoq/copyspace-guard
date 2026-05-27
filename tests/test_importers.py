@@ -4,12 +4,13 @@ import json
 import sys
 import tempfile
 import unittest
+from xml.parsers.expat import ExpatError
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from copyspace_guard.importers import import_csv_with_map, import_msccl_xml, import_taccl_json
+from copyspace_guard.importers import import_csv_with_map, import_msccl_xml, import_taccl_json  # noqa: E402
 
 
 class ImportersTests(unittest.TestCase):
@@ -31,7 +32,7 @@ class ImportersTests(unittest.TestCase):
 
             bad = root / "bad.json"
             bad.write_text("{", encoding="utf-8")
-            with self.assertRaises(Exception):
+            with self.assertRaises(json.JSONDecodeError):
                 import_taccl_json(bad)
 
     def test_import_msccl_xml_invalid(self) -> None:
@@ -39,7 +40,7 @@ class ImportersTests(unittest.TestCase):
             root = Path(td)
             bad = root / "bad.xml"
             bad.write_text("<algo><op></algo>", encoding="utf-8")
-            with self.assertRaises(Exception):
+            with self.assertRaises(ExpatError):
                 import_msccl_xml(bad)
 
     def test_importers_limits(self) -> None:
