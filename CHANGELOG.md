@@ -12,7 +12,9 @@ Highlights:
 - Added importer hardening and expanded importer test coverage (including happy-path parsing).
 - Added optional `--max-gap-vs-greedy` threshold directly to `audit`.
 - Fixed deterministic tie handling in fractional odd-subset lower-bound selection.
+- Optimized fractional odd-subset candidate walk to avoid repeated list rebuilds in the inner loop.
 - Added `--max-gap` support in `audit` for one-step CI gating.
+- Unified `audit` gate-failure behavior to explicit gate reasons with exit code `2`.
 - Added explicit test coverage for gate warning visibility when `bounds_complete=false`.
 
 ## v0.2.4 — 2026-05-27

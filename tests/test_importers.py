@@ -103,6 +103,9 @@ class ImportersTests(unittest.TestCase):
     def test_schedule_from_rows_sorts_ticks(self) -> None:
         sched = _schedule_from_rows([(2, 1, 2, 4), (0, 0, 1, 8)])
         self.assertEqual(sched["ticks"][0][0]["src_slot"], 0)
+        self.assertEqual(len(sched["ticks"]), 3)
+        self.assertEqual(sched["ticks"][1], [])
+        self.assertEqual(sched["version"], 0)
 
 
 if __name__ == "__main__":

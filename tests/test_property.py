@@ -76,7 +76,8 @@ else:
             assume(inst["model"] == "STRICT1")
             lbs1 = lower_bound_components(inst)
             lbs2 = lower_bound_components(inst)
-            self.assertEqual(lbs1["lower_bound_witness"].get("kind"), lbs2["lower_bound_witness"].get("kind"))
+            self.assertEqual(lbs1["lower_bound_witness"], lbs2["lower_bound_witness"])
+            self.assertEqual(lbs1["lower_bound_ticks"], lbs2["lower_bound_ticks"])
 
 
 if __name__ == "__main__":

@@ -368,6 +368,19 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 2)
             self.assertIn("max-gap-vs-greedy", rc.stderr)
 
+    def test_audit_max_gap_vs_greedy_pass(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap-vs-greedy", "0.99",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+
     def test_audit_max_gap_threshold(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "audit"
@@ -406,6 +419,24 @@ class CliErrorTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(rc.returncode, 2)
+            self.assertIn("bounds_complete=false", rc.stderr)
+
+    def test_audit_accumulates_multiple_gate_reasons(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--slots", "32",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap", "0.01",
+                "--max-gap-vs-greedy", "0.2",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 2)
+            self.assertIn("AUDIT GATE FAIL", rc.stderr)
             self.assertIn("bounds_complete=false", rc.stderr)
 
     def test_compare_command(self):

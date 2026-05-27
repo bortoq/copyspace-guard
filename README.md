@@ -174,6 +174,8 @@ Common `audit` options:
 --max-gap-vs-greedy 0.20
 ```
 
+Note: `--max-gap-vs-greedy` runs deterministic `greedy` internally to compute the comparison metric.
+
 `--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
 
 ### Import external schedule formats

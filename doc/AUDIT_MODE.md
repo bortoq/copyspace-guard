@@ -33,3 +33,10 @@ In `analyze` with `customer_current`, the summary includes:
 - Negative: current schedule is faster than greedy.
 
 For large-slot instances where lower bounds may be partial, this metric is often more stable for CI thresholding than `gap_to_lower_bound` alone.
+
+## Audit gate failure output
+
+When `--max-gap` and/or `--max-gap-vs-greedy` are provided and thresholds fail, `audit` exits with code `2` and prints:
+
+- `AUDIT GATE FAIL`
+- one or more bullet-point reasons (for example `bounds_complete=false...` or threshold exceedance).
