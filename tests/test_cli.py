@@ -328,6 +328,24 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(data["candidate_label"], "customer_current")
             self.assertTrue((out / "report.md").exists())
 
+    def test_compare_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "compare"
+            rc = run_cli(
+                "compare",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule-a", "examples/current_schedule.csv",
+                "--schedule-b", "examples/current_schedule.csv",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(data["current_label"], "schedule_a")
+            self.assertEqual(data["candidate_label"], "schedule_b")
+            self.assertTrue((out / "report_schedule_a.json").exists())
+            self.assertTrue((out / "report_schedule_b.json").exists())
+
     def test_import_commands_limits_and_errors(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

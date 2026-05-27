@@ -212,6 +212,88 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 0 if rep.status == "PASS" else 2
 
 
+def _load_schedule_auto(path: str, *, model: str) -> dict[str, Any]:
+    p = Path(path)
+    if p.suffix.lower() == ".csv":
+        return schedule_from_csv(path, model=model)
+    return cast(dict[str, Any], load_json(path))
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    outdir = prepare_output_dir(Path(args.outdir))
+    if args.max_errors is not None and args.max_errors < 0:
+        raise ValueError("--max-errors must be >= 0")
+    if args.bounds_subset_limit < 0:
+        raise ValueError("--bounds-subset-limit must be >= 0")
+    inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
+    sched_a = _load_schedule_auto(args.schedule_a, model=str(inst.get("model", "STRICT1")))
+    sched_b = _load_schedule_auto(args.schedule_b, model=str(inst.get("model", "STRICT1")))
+    rep_a = validate_schedule(inst, sched_a, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+    rep_b = validate_schedule(inst, sched_b, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+    if args.max_output_ticks is not None:
+        if rep_a.ticks_total > args.max_output_ticks:
+            raise ValueError(f"schedule_a ticks_total {rep_a.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+        if rep_b.ticks_total > args.max_output_ticks:
+            raise ValueError(f"schedule_b ticks_total {rep_b.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+
+    roi_config = {}
+    if args.roi:
+        loaded_roi = load_config(args.roi)
+        roi_config = loaded_roi.get("roi", loaded_roi)
+    cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
+    comp = compare_reports(rep_a, rep_b, cost_per_tick)
+    roi_summary = compute_roi(comp, roi_config)
+
+    dump_json(outdir / "instance.json", inst)
+    dump_json(outdir / "schedule_schedule_a.json", sched_a)
+    dump_json(outdir / "schedule_schedule_b.json", sched_b)
+    write_schedule_csv(outdir / "schedule_schedule_a.csv", sched_a)
+    write_schedule_csv(outdir / "schedule_schedule_b.csv", sched_b)
+    dump_json(outdir / "report_schedule_a.json", rep_a.to_dict())
+    dump_json(outdir / "report_schedule_b.json", rep_b.to_dict())
+    summary = {
+        "instance": inst,
+        "current_label": "schedule_a",
+        "candidate_label": "schedule_b",
+        "reports": {
+            "current": rep_a.to_dict(),
+            "schedule_a": rep_a.to_dict(),
+            "schedule_b": rep_b.to_dict(),
+        },
+        "comparison": comp,
+        "roi": roi_summary,
+        "analysis_options": {
+            "bounds_subset_limit": args.bounds_subset_limit,
+            "max_errors": args.max_errors,
+            "mode": "compare",
+        },
+        "artifacts": {
+            "instance": "instance.json",
+            "schedule_current": "schedule_schedule_a.json",
+            "schedule_current_csv": "schedule_schedule_a.csv",
+            "schedule_greedy": "schedule_schedule_b.json",
+            "schedule_greedy_csv": "schedule_schedule_b.csv",
+            "report_current": "report_schedule_a.json",
+            "report_greedy": "report_schedule_b.json",
+            "report_markdown": "report.md",
+            "report_html": "report.html",
+        },
+        "compare": {
+            "note": "compare mode evaluates two provided external schedules on one demand matrix.",
+            "schedule_a_path": args.schedule_a,
+            "schedule_b_path": args.schedule_b,
+        },
+    }
+    validate_summary_contract(summary)
+    dump_json(outdir / "summary.json", summary)
+    write_reports(outdir, summary)
+    print(f"Copy-Space Guard compare written to: {outdir}")
+    print(f"schedule_a: status={rep_a.status} ticks={rep_a.ticks_total} lb={rep_a.lower_bound_ticks} gap={rep_a.gap_to_lower_bound:.6f} util={rep_a.utilization:.4f}")
+    print(f"schedule_b: status={rep_b.status} ticks={rep_b.ticks_total} lb={rep_b.lower_bound_ticks} gap={rep_b.gap_to_lower_bound:.6f} util={rep_b.utilization:.4f}")
+    print(f"saved_ticks={comp['saved_ticks']} estimated_savings={comp['estimated_savings']:.2f}")
+    return 0 if rep_a.status == "PASS" and rep_b.status == "PASS" else 2
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     if args.max_errors is not None and args.max_errors < 0:
         raise ValueError("--max-errors must be >= 0")
@@ -722,6 +804,23 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
     au.add_argument("--outdir", default="artifacts/audit")
     au.set_defaults(func=cmd_audit)
+
+    c = sub.add_parser("compare", help="compare two provided schedules against one demands matrix")
+    c.add_argument("--demands", required=True, help="CSV with src_slot,dst_slot,bits_total")
+    c.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
+    c.add_argument("--schedule-a", required=True, help="schedule A path (.json or .csv)")
+    c.add_argument("--schedule-b", required=True, help="schedule B path (.json or .csv)")
+    c.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
+    c.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
+    c.add_argument("--id", default="compare-workload")
+    c.add_argument("--notes", default=None)
+    c.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
+    c.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
+    c.add_argument("--bounds-subset-limit", type=int, default=20)
+    c.add_argument("--max-errors", type=int, default=None)
+    c.add_argument("--max-output-ticks", type=int, default=None)
+    c.add_argument("--outdir", default="artifacts/compare")
+    c.set_defaults(func=cmd_compare)
 
     v = sub.add_parser("validate", help="validate an existing schedule against an instance")
     v.add_argument("instance")
