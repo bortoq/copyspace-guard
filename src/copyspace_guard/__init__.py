@@ -1,6 +1,6 @@
 """Copy-Space Guard: deterministic data-movement audit and CI gate."""
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 from .core import (  # noqa: F401
     BOUNDS_REASON_AUTO_EXHAUSTIVE,

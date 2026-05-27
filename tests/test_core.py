@@ -314,41 +314,64 @@ class ModelExtensionTests(unittest.TestCase):
             BOUNDS_REASON_READ1_WRITE1_COMPLETE: True,
         }
         cases = [
-            {
-                "version": 0,
-                "model": "STRICT1",
-                "slots": 4,
-                "copy_bw_bits_per_tick": 1,
-                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
-            },
-            {
-                "version": 0,
-                "model": "STRICT1",
-                "slots": 32,
-                "copy_bw_bits_per_tick": 1,
-                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
-            },
-            {
-                "version": 0,
-                "model": "STRICT1",
-                "slots": 4,
-                "copy_bw_bits_per_tick": 1,
-                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
-                "_mode": "fractional_exact",
-            },
-            {
-                "version": 0,
-                "model": "READ1_WRITE1",
-                "slots": 4,
-                "copy_bw_bits_per_tick": 1,
-                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
-            },
+            (
+                {
+                    "version": 0,
+                    "model": "STRICT1",
+                    "slots": 4,
+                    "copy_bw_bits_per_tick": 1,
+                    "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+                },
+                "auto",
+            ),
+            (
+                {
+                    "version": 0,
+                    "model": "STRICT1",
+                    "slots": 32,
+                    "copy_bw_bits_per_tick": 1,
+                    "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+                },
+                "auto",
+            ),
+            (
+                {
+                    "version": 0,
+                    "model": "STRICT1",
+                    "slots": 4,
+                    "copy_bw_bits_per_tick": 1,
+                    "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+                },
+                "fractional_exact",
+            ),
+            (
+                {
+                    "version": 0,
+                    "model": "READ1_WRITE1",
+                    "slots": 4,
+                    "copy_bw_bits_per_tick": 1,
+                    "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+                },
+                "auto",
+            ),
         ]
-        for inst in cases:
-            mode = inst.pop("_mode", "auto")
+        for inst, mode in cases:
             lbs = lower_bound_components(inst, strict1_bounds_mode=mode)
             reason = lbs["bounds_complete_reason"]
             self.assertEqual(lbs["bounds_complete"], expected[reason])
+
+    def test_bounds_reason_constants_in_public_api(self):
+        import copyspace_guard as cg
+
+        expected = [
+            "BOUNDS_REASON_AUTO_EXHAUSTIVE",
+            "BOUNDS_REASON_AUTO_PARTIAL",
+            "BOUNDS_REASON_EXACT_FRACTIONAL_MODE",
+            "BOUNDS_REASON_READ1_WRITE1_COMPLETE",
+        ]
+        for name in expected:
+            self.assertIn(name, cg.__all__)
+            self.assertIsInstance(getattr(cg, name), str)
 
     def test_bounds_limit_has_hard_cap(self):
         inst = {
@@ -521,6 +544,22 @@ class SchemaFilesTests(unittest.TestCase):
         for schema_name, obj in cases:
             schema = json.loads((ROOT / "schemas" / schema_name).read_text(encoding="utf-8"))
             Draft202012Validator(schema).validate(obj)
+
+    def test_bounds_reason_schema_enum_matches_constants(self):
+        expected = [
+            BOUNDS_REASON_AUTO_EXHAUSTIVE,
+            BOUNDS_REASON_AUTO_PARTIAL,
+            BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+            BOUNDS_REASON_READ1_WRITE1_COMPLETE,
+            None,
+        ]
+        report_schema = json.loads((ROOT / "schemas" / "report_v0.schema.json").read_text(encoding="utf-8"))
+        report_enum = report_schema["properties"]["bounds_complete_reason"]["enum"]
+        self.assertEqual(report_enum, expected)
+
+        summary_schema = json.loads((ROOT / "schemas" / "summary_v0.schema.json").read_text(encoding="utf-8"))
+        summary_enum = summary_schema["$defs"]["report"]["properties"]["bounds_complete_reason"]["enum"]
+        self.assertEqual(summary_enum, expected)
 
 
 class IoAndContractTests(unittest.TestCase):
