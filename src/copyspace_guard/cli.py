@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 import time
@@ -33,7 +34,14 @@ from .core import (
     write_schedule_csv,
 )
 from .report import write_reports
-from .importers import import_csv_with_map, import_msccl_xml, import_taccl_json
+from .importers import (
+    import_csv_with_map,
+    import_msccl_xml,
+    import_nccl_log_demands,
+    import_pytorch_trace_demands,
+    import_taccl_json,
+    write_imported_demands_csv,
+)
 
 
 def _check_bounds_mode_slots(inst: dict[str, Any], bounds_mode: str) -> None:
@@ -206,9 +214,39 @@ def cmd_audit(args: argparse.Namespace) -> int:
     _check_bounds_mode_slots(inst, args.bounds_mode)
     if args.schedule_json and args.schedule_csv:
         raise SystemExit("use only one of --schedule-json or --schedule-csv")
-    if not args.schedule_json and not args.schedule_csv:
-        raise SystemExit("provide one of --schedule-json or --schedule-csv")
-    if args.schedule_json:
+    if args.solver_plugin and (args.schedule_json or args.schedule_csv):
+        raise SystemExit("use either --solver-plugin or a schedule input, not both")
+    if not args.solver_plugin and not args.schedule_json and not args.schedule_csv:
+        raise SystemExit("provide one of --schedule-json, --schedule-csv, or --solver-plugin")
+    if args.solver_plugin:
+        plugin = Path(args.solver_plugin)
+        if not plugin.exists():
+            raise FileNotFoundError(f"solver plugin not found: {plugin}")
+        payload = json.dumps(inst)
+        proc = subprocess.run(
+            [sys.executable, str(plugin)],
+            input=payload,
+            text=True,
+            capture_output=True,
+            timeout=float(args.solver_plugin_timeout),
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise ValueError(f"solver plugin failed with exit code {proc.returncode}: {proc.stderr.strip()}")
+        if args.solver_plugin_max_output_bytes is not None and len(proc.stdout.encode("utf-8")) > int(args.solver_plugin_max_output_bytes):
+            raise ValueError("solver plugin output exceeds --solver-plugin-max-output-bytes")
+        try:
+            schedule = json.loads(proc.stdout)
+        except Exception as e:
+            raise ValueError("solver plugin did not return valid schedule JSON") from e
+        rep = validate_schedule(
+            inst,
+            schedule,
+            max_errors=args.max_errors,
+            bounds_subset_limit=args.bounds_subset_limit,
+            strict1_bounds_mode=args.bounds_mode,
+        )
+    elif args.schedule_json:
         schedule = load_json(args.schedule_json)
         rep = validate_schedule(
             inst,
@@ -486,6 +524,22 @@ def cmd_import_csv(args: argparse.Namespace) -> int:
     out_path = prepare_output_file(Path(args.out))
     dump_json(out_path, sched)
     print(f"schedule JSON written to: {out_path}")
+    return 0
+
+
+def cmd_import_nccl_log(args: argparse.Namespace) -> int:
+    rows = import_nccl_log_demands(args.log, max_rows=args.max_rows, max_file_size=args.max_file_size)
+    out_path = prepare_output_file(Path(args.out))
+    write_imported_demands_csv(rows, out_path)
+    print(f"demands CSV written to: {out_path} rows={len(rows)}")
+    return 0
+
+
+def cmd_import_pytorch_trace(args: argparse.Namespace) -> int:
+    rows = import_pytorch_trace_demands(args.trace, max_rows=args.max_rows, max_file_size=args.max_file_size)
+    out_path = prepare_output_file(Path(args.out))
+    write_imported_demands_csv(rows, out_path)
+    print(f"demands CSV written to: {out_path} rows={len(rows)}")
     return 0
 
 
@@ -916,6 +970,9 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--notes", default=None)
     au.add_argument("--schedule-json", default=None, help="customer schedule JSON")
     au.add_argument("--schedule-csv", "--schedule", dest="schedule_csv", default=None, help="customer schedule CSV: tick,src_slot,dst_slot,len_bits")
+    au.add_argument("--solver-plugin", default=None, help="external solver plugin path (reads instance JSON from stdin, writes schedule JSON to stdout)")
+    au.add_argument("--solver-plugin-timeout", type=float, default=300.0, help="timeout in seconds for --solver-plugin")
+    au.add_argument("--solver-plugin-max-output-bytes", type=int, default=8_000_000, help="max stdout bytes accepted from --solver-plugin")
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
     au.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
@@ -988,6 +1045,20 @@ def build_parser() -> argparse.ArgumentParser:
     ic.add_argument("--max-rows", type=int, default=None)
     ic.add_argument("--max-file-size", type=int, default=None)
     ic.set_defaults(func=cmd_import_csv)
+
+    inl = sub.add_parser("import-nccl-log", help="import NCCL debug log into demands CSV")
+    inl.add_argument("log")
+    inl.add_argument("--out", required=True, help="output demands CSV path")
+    inl.add_argument("--max-rows", type=int, default=None)
+    inl.add_argument("--max-file-size", type=int, default=None)
+    inl.set_defaults(func=cmd_import_nccl_log)
+
+    ipt = sub.add_parser("import-pytorch-trace", help="import PyTorch profiler trace JSON into demands CSV")
+    ipt.add_argument("trace")
+    ipt.add_argument("--out", required=True, help="output demands CSV path")
+    ipt.add_argument("--max-rows", type=int, default=None)
+    ipt.add_argument("--max-file-size", type=int, default=None)
+    ipt.set_defaults(func=cmd_import_pytorch_trace)
 
     va = sub.add_parser("validate-artifact", help="validate a generated v0 JSON artifact contract")
     va.add_argument("--kind", choices=["instance", "schedule", "report", "summary"], required=True)

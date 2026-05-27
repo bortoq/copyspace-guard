@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from xml.parsers import expat
 from pathlib import Path
 from typing import Any
@@ -161,3 +162,90 @@ def import_msccl_xml(
     with open(path, "rb") as f:
         parser.ParseFile(f)
     return _schedule_from_rows(rows, model=model)
+
+
+def _write_demands_csv(rows: list[tuple[int, int, int]], out: str | Path) -> None:
+    with open(out, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["src_slot", "dst_slot", "bits_total"])
+        for s, t, bits in rows:
+            w.writerow([s, t, bits])
+
+
+def import_nccl_log_demands(
+    path: str | Path,
+    *,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
+) -> list[tuple[int, int, int]]:
+    _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
+    # Example supported line:
+    # ring: rank 0 -> rank 1, bytes=134217728
+    p = re.compile(r"rank\s+(\d+)\s*->\s*rank\s+(\d+).*?\bbytes\s*=\s*(\d+)", re.IGNORECASE)
+    agg: dict[tuple[int, int], int] = {}
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            m = p.search(line)
+            if not m:
+                continue
+            src = _as_int(m.group(1))
+            dst = _as_int(m.group(2))
+            bits = _as_int(m.group(3)) * 8
+            if src < 0 or dst < 0 or src == dst or bits <= 0:
+                continue
+            agg[(src, dst)] = agg.get((src, dst), 0) + bits
+            if max_rows is not None and len(agg) > max_rows:
+                raise ValueError(f"demand row count exceeds --max-rows {max_rows}")
+    if not agg:
+        raise ValueError("no NCCL rank->rank byte lines found in log")
+    return [(s, t, b) for (s, t), b in sorted(agg.items())]
+
+
+def import_pytorch_trace_demands(
+    path: str | Path,
+    *,
+    max_rows: int | None = None,
+    max_file_size: int | None = None,
+) -> list[tuple[int, int, int]]:
+    _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
+    with open(path, "r", encoding="utf-8") as f:
+        obj = json.load(f)
+    events = obj.get("traceEvents", obj) if isinstance(obj, dict) else obj
+    if not isinstance(events, list):
+        raise ValueError("PyTorch trace must be a JSON list or contain traceEvents list")
+    agg: dict[tuple[int, int], int] = {}
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        name = str(ev.get("name", "")).lower()
+        if "nccl" not in name and "allreduce" not in name:
+            continue
+        args = ev.get("args", {})
+        if not isinstance(args, dict):
+            continue
+        ranks = args.get("ranks")
+        b = args.get("bytes")
+        if not isinstance(ranks, list) or len(ranks) < 2 or b is None:
+            continue
+        bits = _as_int(b) * 8
+        rr = [_as_int(x) for x in ranks]
+        rr.sort()
+        for i, src in enumerate(rr):
+            for dst in rr[i + 1:]:
+                if src == dst:
+                    continue
+                agg[(src, dst)] = agg.get((src, dst), 0) + bits
+                if max_rows is not None and len(agg) > max_rows:
+                    raise ValueError(f"demand row count exceeds --max-rows {max_rows}")
+    if not agg:
+        raise ValueError("no NCCL-like communication events with args.bytes+ranks found")
+    return [(s, t, b) for (s, t), b in sorted(agg.items())]
+
+
+def write_imported_demands_csv(
+    rows: list[tuple[int, int, int]],
+    out: str | Path,
+) -> None:
+    if not rows:
+        raise ValueError("no demand rows found")
+    _write_demands_csv(rows, out)

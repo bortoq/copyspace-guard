@@ -1,0 +1,26 @@
+name: Schedule Audit
+on: [push, pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install copyspace-guard
+      - name: Convert NCCL log to demands
+        run: copyspace-guard import-nccl-log logs/nccl.log --out demands.csv
+      - name: Audit schedule
+        run: |
+          copyspace-guard audit \
+            --demands demands.csv \
+            --bw 256 \
+            --schedule artifacts/schedule.csv \
+            --max-gap-vs-greedy 0.15 \
+            --outdir artifacts/audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: artifacts/audit/

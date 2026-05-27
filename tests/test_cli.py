@@ -329,6 +329,26 @@ class CliErrorTests(unittest.TestCase):
             data = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(data["ticks"][0][0]["len_bits"], 64)
 
+    def test_import_nccl_log_and_pytorch_trace(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            nccl = root / "nccl.log"
+            nccl.write_text("ring: rank 0 -> rank 1, bytes=4\n", encoding="utf-8")
+            out_demands = root / "demands_from_nccl.csv"
+            rc = run_cli("import-nccl-log", str(nccl), "--out", str(out_demands))
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("src_slot,dst_slot,bits_total", out_demands.read_text(encoding="utf-8"))
+
+            trace = root / "trace.json"
+            trace.write_text(
+                json.dumps({"traceEvents": [{"name": "ncclAllReduce", "args": {"bytes": 4, "ranks": [0, 1]}}]}),
+                encoding="utf-8",
+            )
+            out_trace = root / "demands_from_trace.csv"
+            rc = run_cli("import-pytorch-trace", str(trace), "--out", str(out_trace))
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("src_slot,dst_slot,bits_total", out_trace.read_text(encoding="utf-8"))
+
     def test_audit_command(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "audit"
@@ -353,6 +373,29 @@ class CliErrorTests(unittest.TestCase):
             self.assertIn("theoretical_max", data.get("roi", {}))
             self.assertIn("practical_gap=", rc.stdout)
             self.assertIn("theoretical_gap=", rc.stdout)
+
+    def test_audit_solver_plugin(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plugin = root / "plugin.py"
+            plugin.write_text(
+                "import json,sys\n"
+                "inst=json.load(sys.stdin)\n"
+                "sched={'version':0,'model':inst['model'],'ticks':[[{'src_slot':0,'dst_slot':1,'len_bits':256}]]}\n"
+                "json.dump(sched,sys.stdout)\n",
+                encoding="utf-8",
+            )
+            out = root / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--solver-plugin", str(plugin),
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 2)
+            self.assertTrue((out / "report_customer_current.json").exists())
 
     def test_audit_bounds_mode_fractional_exact(self):
         with tempfile.TemporaryDirectory() as td:

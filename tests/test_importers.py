@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from copyspace_guard.importers import _schedule_from_rows, import_csv_with_map, import_msccl_xml, import_taccl_json  # noqa: E402
+from copyspace_guard.importers import import_nccl_log_demands, import_pytorch_trace_demands  # noqa: E402
 
 
 class ImportersTests(unittest.TestCase):
@@ -106,6 +107,34 @@ class ImportersTests(unittest.TestCase):
         self.assertEqual(len(sched["ticks"]), 3)
         self.assertEqual(sched["ticks"][1], [])
         self.assertEqual(sched["version"], 0)
+
+    def test_import_nccl_log_demands(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "nccl.log"
+            p.write_text(
+                "ring: rank 0 -> rank 1, bytes=4\n"
+                "ring: rank 1 -> rank 2, bytes=8\n"
+                "ring: rank 0 -> rank 1, bytes=2\n",
+                encoding="utf-8",
+            )
+            rows = import_nccl_log_demands(p)
+            self.assertEqual(rows, [(0, 1, 48), (1, 2, 64)])
+
+    def test_import_pytorch_trace_demands(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "trace.json"
+            p.write_text(
+                json.dumps(
+                    {
+                        "traceEvents": [
+                            {"name": "ncclAllReduce", "args": {"bytes": 16, "ranks": [0, 1, 2]}},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            rows = import_pytorch_trace_demands(p)
+            self.assertEqual(rows, [(0, 1, 128), (0, 2, 128), (1, 2, 128)])
 
 
 if __name__ == "__main__":
