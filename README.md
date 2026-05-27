@@ -288,14 +288,19 @@ For audit-first usage and metric interpretation (`audit_note`, `gap_vs_greedy`),
 - `report.md` — human-readable audit report.
 - `report.html` — shareable report.
 
-## v0.2.3 boundaries
+## v0.2.4 boundaries
 
 Included:
 
 - volume-based demand modeling;
 - deterministic baseline and greedy schedules;
+- first-class `audit` command for audit-only validation of external schedules;
+- external schedule importers: `import-msccl`, `import-taccl`, `import-csv --map ...`;
 - STRICT1 and READ1_WRITE1 validators;
 - lower-bound gap and utilization metrics;
+- strengthened large-`STRICT1` lower bounds (heuristic subset density, fractional odd-subset, LP-core odd-subset pass);
+- external-audit interpretation fields (`audit_note`, `gap_vs_greedy`);
+- CI gate threshold for `gap_vs_greedy` via `--max-gap-vs-greedy`;
 - ROI estimates via `roi.yml` or a simple `$ per tick` assumption;
 - report artifacts;
 - PyPI publishing through GitHub Actions Trusted Publishing;

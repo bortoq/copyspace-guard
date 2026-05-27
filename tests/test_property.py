@@ -60,6 +60,15 @@ else:
             self.assertLessEqual(lbs["lower_bound_ticks"], opt)
             self.assertLessEqual(opt, rep.ticks_total)
 
+        @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=40, max_demands=20, max_bits=8))
+        def test_large_strict1_lower_bound_not_above_greedy(self, inst: dict[str, Any]) -> None:
+            assume(int(inst["slots"]) > 24)
+            assume(inst["model"] == "STRICT1")
+            rep = validate_schedule(inst, solve_greedy(inst))
+            lbs = lower_bound_components(inst)
+            self.assertLessEqual(lbs["lower_bound_ticks"], rep.ticks_total)
+
 
 if __name__ == "__main__":
     unittest.main()
