@@ -312,6 +312,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     from .core import Report
     rep = Report(**reports[report_name])
     max_gap = args.max_gap if args.max_gap is not None else cfg.get("max_gap_to_lower_bound", cfg.get("max_gap"))
+    max_gap_vs_greedy = args.max_gap_vs_greedy if args.max_gap_vs_greedy is not None else cfg.get("max_gap_vs_greedy")
     min_util = args.min_utilization if args.min_utilization is not None else cfg.get("min_utilization")
     max_ticks = args.max_ticks if args.max_ticks is not None else cfg.get("max_ticks")
     ok, reasons = gate_report(
@@ -320,8 +321,29 @@ def cmd_gate(args: argparse.Namespace) -> int:
         min_utilization=float(min_util) if min_util is not None else None,
         max_ticks=int(max_ticks) if max_ticks is not None else None,
     )
+    gap_vs_greedy_value = None
+    if max_gap_vs_greedy is not None:
+        audit = summary.get("audit", {})
+        if isinstance(audit, dict) and isinstance(audit.get("gap_vs_greedy"), (int, float)):
+            gap_vs_greedy_value = float(audit["gap_vs_greedy"])
+        else:
+            current_label = summary.get("current_label", "baseline")
+            reports_obj = summary.get("reports", {})
+            cur = reports_obj.get(current_label)
+            greedy = reports_obj.get("greedy")
+            if isinstance(cur, dict) and isinstance(greedy, dict):
+                cur_ticks = int(cur.get("ticks_total", 0))
+                greedy_ticks = int(greedy.get("ticks_total", 0))
+                if cur_ticks > 0:
+                    gap_vs_greedy_value = (cur_ticks - greedy_ticks) / cur_ticks
+        if gap_vs_greedy_value is None:
+            reasons.append("gap_vs_greedy unavailable in summary for this report")
+        elif gap_vs_greedy_value > float(max_gap_vs_greedy):
+            reasons.append(f"gap_vs_greedy {gap_vs_greedy_value:.6f} > max_gap_vs_greedy {float(max_gap_vs_greedy):.6f}")
+    ok = len(reasons) == 0
     if ok:
-        print(f"GATE PASS report={report_name} ticks={rep.ticks_total} gap={rep.gap_to_lower_bound:.6f} util={rep.utilization:.4f}")
+        extra = f" gap_vs_greedy={gap_vs_greedy_value:.6f}" if gap_vs_greedy_value is not None else ""
+        print(f"GATE PASS report={report_name} ticks={rep.ticks_total} gap={rep.gap_to_lower_bound:.6f} util={rep.utilization:.4f}{extra}")
         return 0
     print(f"GATE FAIL report={report_name}", file=sys.stderr)
     for r in reasons:
@@ -657,6 +679,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--config", default=None, help="optional gate config JSON/YAML")
     g.add_argument("--report", choices=["greedy", "baseline", "current", "customer_current"], default=None)
     g.add_argument("--max-gap", type=float, default=None)
+    g.add_argument("--max-gap-vs-greedy", type=float, default=None)
     g.add_argument("--min-utilization", type=float, default=None)
     g.add_argument("--max-ticks", type=int, default=None)
     g.set_defaults(func=cmd_gate)

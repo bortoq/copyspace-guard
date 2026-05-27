@@ -107,6 +107,27 @@ if __name__ == "__main__":
     unittest.main()
 
 class ModelExtensionTests(unittest.TestCase):
+    def test_large_strict1_bounds_are_deterministic(self):
+        demands = []
+        for i in range(12):
+            demands.append({"src_slot": i, "dst_slot": 28 + i, "bits_total": 13})
+        clique = [20, 21, 22, 23, 24]
+        for i in range(len(clique)):
+            for j in range(i + 1, len(clique)):
+                demands.append({"src_slot": clique[i], "dst_slot": clique[j], "bits_total": 3})
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 40,
+            "copy_bw_bits_per_tick": 1,
+            "demands": demands,
+        }
+        a = lower_bound_components(inst)
+        b = lower_bound_components(inst)
+        self.assertEqual(a["lower_bound_ticks"], b["lower_bound_ticks"])
+        self.assertEqual(a["density_lower_bound"], b["density_lower_bound"])
+        self.assertEqual(a["lower_bound_witness"], b["lower_bound_witness"])
+
     def test_read1_write1_allows_send_and_receive_same_tick(self):
         inst = {
             "version": 0,

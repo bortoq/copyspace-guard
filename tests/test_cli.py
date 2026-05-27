@@ -182,6 +182,24 @@ class CliTests(unittest.TestCase):
             self.assertFalse(data["comparison"]["comparable"])
             self.assertEqual(data["comparison"]["saved_ticks"], 0)
 
+    def test_gate_max_gap_vs_greedy(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--current-schedule-csv", "examples/current_schedule.csv",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            rc = run_cli("gate", str(out / "summary.json"), "--report", "customer_current", "--max-gap-vs-greedy", "0.4")
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("gap_vs_greedy", rc.stdout)
+            rc = run_cli("gate", str(out / "summary.json"), "--report", "customer_current", "--max-gap-vs-greedy", "0.2", check=False)
+            self.assertEqual(rc.returncode, 2)
+            self.assertIn("max_gap_vs_greedy", rc.stderr)
+
     def test_anonymize_schedule(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "sched.csv"
@@ -259,6 +277,15 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 0)
             data = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(data["ticks"][0][0]["len_bits"], 128)
+
+    def test_import_sample_files_from_examples(self):
+        with tempfile.TemporaryDirectory() as td:
+            out_xml = Path(td) / "from_xml.json"
+            out_json = Path(td) / "from_taccl.json"
+            rc = run_cli("import-msccl", "examples/sample_msccl.xml", "--out", str(out_xml))
+            self.assertEqual(rc.returncode, 0)
+            rc = run_cli("import-taccl", "examples/sample_taccl.json", "--out", str(out_json))
+            self.assertEqual(rc.returncode, 0)
 
     def test_import_msccl_xml(self):
         with tempfile.TemporaryDirectory() as td:

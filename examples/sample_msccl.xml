@@ -1,0 +1,4 @@
+<algorithm>
+  <op step="0" src="0" dst="1" cnt="256" />
+  <op step="1" src="1" dst="2" cnt="256" />
+</algorithm>
