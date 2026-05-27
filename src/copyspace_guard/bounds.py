@@ -148,6 +148,46 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
                             "internal_chunks": internal_chunks,
                             "formula": "ceil(2*E(S)/(abs(S)-1))",
                         }
+        # LP-relaxation core pass: exact odd-subset scan on a larger high-pressure core.
+        # This is equivalent to tightening the fractional matching lower bound on the core.
+        core_size = min(18, slots)
+        core_nodes = sorted(ranked[:core_size])
+        core_index = {v: i for i, v in enumerate(core_nodes)}
+        wc = [[0] * core_size for _ in range(core_size)]
+        for s, t, c in edges:
+            if s in core_index and t in core_index:
+                i = core_index[s]
+                j = core_index[t]
+                wc[i][j] += c
+                wc[j][i] += c
+        if core_size >= 3:
+            internal = [0] * (1 << core_size)
+            for mask in range(1, 1 << core_size):
+                lowbit = mask & -mask
+                v = lowbit.bit_length() - 1
+                prev = mask ^ lowbit
+                add = 0
+                m = prev
+                while m:
+                    lb = m & -m
+                    u = lb.bit_length() - 1
+                    add += wc[v][u]
+                    m ^= lb
+                internal[mask] = internal[prev] + add
+                k = mask.bit_count()
+                if k < 3 or (k % 2 == 0):
+                    continue
+                lp_lb = math.ceil((2 * internal[mask]) / (k - 1)) if internal[mask] else 0
+                if lp_lb > density_lb:
+                    density_lb = lp_lb
+                    witness = {
+                        "kind": "lp_relaxation_core_odd_subset",
+                        "subset": [core_nodes[i] for i in range(core_size) if mask & (1 << i)],
+                        "subset_size": k,
+                        "internal_chunks": internal[mask],
+                        "formula": "ceil(2*E(S)/(abs(S)-1))",
+                        "core_size": core_size,
+                    }
 
     lower = max(degree_lb, capacity_lb, density_lb)
     return {

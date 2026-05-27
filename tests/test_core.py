@@ -174,7 +174,32 @@ class ModelExtensionTests(unittest.TestCase):
         self.assertGreaterEqual(lbs["lower_bound_ticks"], 15)
         self.assertIn(
             lbs["lower_bound_witness"]["kind"],
-            {"subset_density_heuristic", "fractional_relaxation_odd_subset"},
+            {"subset_density_heuristic", "fractional_relaxation_odd_subset", "lp_relaxation_core_odd_subset"},
+        )
+
+    def test_lp_core_relaxation_witness_is_available_for_large_strict1(self):
+        demands = []
+        # Keep several higher-degree distractors first in ranking.
+        for i in range(9):
+            demands.append({"src_slot": i, "dst_slot": 30 + i, "bits_total": 14})
+        # Dense odd core subset that should be picked up by core LP scan.
+        core = [20, 21, 22, 23, 24]
+        for i in range(len(core)):
+            for j in range(i + 1, len(core)):
+                demands.append({"src_slot": core[i], "dst_slot": core[j], "bits_total": 4})
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 42,
+            "copy_bw_bits_per_tick": 1,
+            "demands": demands,
+        }
+        lbs = lower_bound_components(inst)
+        self.assertFalse(lbs["bounds_complete"])
+        self.assertGreaterEqual(lbs["lower_bound_ticks"], 20)
+        self.assertIn(
+            lbs["lower_bound_witness"]["kind"],
+            {"subset_density_heuristic", "fractional_relaxation_odd_subset", "lp_relaxation_core_odd_subset"},
         )
 
     def test_exact_optimal_ticks_small_oracle(self):
