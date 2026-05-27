@@ -24,6 +24,14 @@ def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, in
     return slots, bw, model, edges
 
 
+def _build_weight_matrix(slots: int, edges: List[Tuple[int, int, int]]) -> List[List[int]]:
+    w = [[0] * slots for _ in range(slots)]
+    for s, t, c in edges:
+        w[s][t] += c
+        w[t][s] += c
+    return w
+
+
 def _compute_internal_edge_sums(w: List[List[int]], n: int) -> List[int]:
     internal = [0] * (1 << n)
     for mask in range(1, 1 << n):
@@ -39,6 +47,11 @@ def _compute_internal_edge_sums(w: List[List[int]], n: int) -> List[int]:
             m ^= lb
         internal[mask] = internal[prev] + add
     return internal
+
+
+def _compute_edge_internal(slots: int, edges: List[Tuple[int, int, int]]) -> Tuple[List[List[int]], List[int]]:
+    w = _build_weight_matrix(slots, edges)
+    return w, _compute_internal_edge_sums(w, slots)
 
 
 def _strict1_bounds(
@@ -63,6 +76,7 @@ def _strict1_bounds(
         "tick_capacity_chunks": tick_capacity,
     }
     bounds_complete = slots <= exhaustive_subset_limit
+    bounds_complete_reason = "auto_exhaustive" if bounds_complete else "auto_partial"
 
     if strict1_bounds_mode == "fractional_exact":
         if slots > MAX_FRACTIONAL_EXACT_SLOTS:
@@ -70,11 +84,7 @@ def _strict1_bounds(
                 f"fractional_exact is limited to <= {MAX_FRACTIONAL_EXACT_SLOTS} slots; got {slots}"
             )
         if slots >= 3:
-            w = [[0] * slots for _ in range(slots)]
-            for s, t, c in edges:
-                w[s][t] += c
-                w[t][s] += c
-            internal = _compute_internal_edge_sums(w, slots)
+            _w, internal = _compute_edge_internal(slots, edges)
             lp_lb = 0
             frac_lb = 0
             frac_num = 0
@@ -113,16 +123,13 @@ def _strict1_bounds(
             "tick_capacity_chunks": tick_capacity,
             "lower_bound_witness": witness,
             "bounds_complete": slots <= MAX_FRACTIONAL_EXACT_SLOTS,
+            "bounds_complete_reason": "exact_fractional_mode",
             "exhaustive_subset_limit": exhaustive_subset_limit,
             "strict1_bounds_mode": strict1_bounds_mode,
         }
 
     if bounds_complete and slots >= 2:
-        w = [[0] * slots for _ in range(slots)]
-        for s, t, c in edges:
-            w[s][t] += c
-            w[t][s] += c
-        internal = _compute_internal_edge_sums(w, slots)
+        w, internal = _compute_edge_internal(slots, edges)
         for mask in range(1, 1 << slots):
             k = mask.bit_count()
             cap = k // 2
@@ -141,10 +148,7 @@ def _strict1_bounds(
     elif slots >= 2:
         # Deterministic large-instance fallback: evaluate dense subsets around
         # high-degree vertices to tighten the lower bound without full 2^N scan.
-        w = [[0] * slots for _ in range(slots)]
-        for s, t, c in edges:
-            w[s][t] += c
-            w[t][s] += c
+        w = _build_weight_matrix(slots, edges)
         ranked = sorted(range(slots), key=lambda i: deg[i], reverse=True)
         seed_count = min(12, slots)
         for seed in ranked[:seed_count]:
@@ -258,6 +262,7 @@ def _strict1_bounds(
         "tick_capacity_chunks": tick_capacity,
         "lower_bound_witness": witness,
         "bounds_complete": bounds_complete,
+        "bounds_complete_reason": bounds_complete_reason,
         "exhaustive_subset_limit": exhaustive_subset_limit,
         "strict1_bounds_mode": strict1_bounds_mode,
     }
@@ -291,6 +296,7 @@ def _read1_write1_bounds(slots: int, edges: List[Tuple[int, int, int]]) -> Dict[
         "tick_capacity_chunks": tick_capacity,
         "lower_bound_witness": witness,
         "bounds_complete": True,
+        "bounds_complete_reason": "read1_write1_complete",
         "exhaustive_subset_limit": None,
     }
 

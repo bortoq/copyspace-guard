@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple, cast
 
 from .bounds import DEFAULT_EXHAUSTIVE_SUBSET_LIMIT
 from .bounds import lower_bound_components
@@ -60,6 +60,8 @@ def _final_report(
         gap_to_lower_bound=gap_ratio,
         lower_bound_witness=dict(lbs.get("lower_bound_witness", {})),
         bounds_complete=bool(lbs.get("bounds_complete", True)),
+        bounds_mode=cast(str, lbs.get("strict1_bounds_mode")) if "strict1_bounds_mode" in lbs else None,
+        bounds_complete_reason=cast(str, lbs.get("bounds_complete_reason")) if "bounds_complete_reason" in lbs else None,
         bounds_exhaustive_subset_limit=lbs.get("exhaustive_subset_limit"),
         total_errors=total_errors,
         errors_truncated=total_errors > len(errors),

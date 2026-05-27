@@ -37,6 +37,11 @@ Copy-Space Guard supports two STRICT1 modes:
 - In `auto`, `bounds_complete` indicates whether exhaustive subset enumeration was used under the configured limit.
 - In `fractional_exact`, `bounds_complete=true` for accepted inputs (the mode rejects larger slot counts before report generation).
 
+Report metadata now includes:
+
+- `bounds_mode`: selected STRICT1 mode (`auto` or `fractional_exact` when applicable),
+- `bounds_complete_reason`: explicit reason tag (`auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, ...).
+
 ## Important limitation
 
 These are lower bounds, not a universal optimality proof for every possible
