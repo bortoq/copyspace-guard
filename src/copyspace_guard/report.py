@@ -99,6 +99,23 @@ At least one schedule report was produced with partial lower-bound enumeration. 
 """
 
 
+def audit_context_section(summary: Dict[str, Any]) -> str:
+    audit = summary.get("audit")
+    if not isinstance(audit, dict):
+        return ""
+    note = str(audit.get("audit_note", "")).strip()
+    gap_vs_greedy = audit.get("gap_vs_greedy")
+    line = ""
+    if isinstance(gap_vs_greedy, (int, float)):
+        line = f"\n- `gap_vs_greedy`: **{gap_vs_greedy:.4f}** (positive means current is slower than greedy)."
+    if not note and not line:
+        return ""
+    return f"""## External schedule audit note
+
+- {note or "No additional note."}{line}
+"""
+
+
 def diagnostics_section(current: Report, candidate: Report, current_label: str, candidate_label: str, *, max_examples: int = 5) -> str:
     reports = [(current_label, current), (candidate_label, candidate)]
     failing = [(label, rep) for label, rep in reports if rep.total_errors > 0]
@@ -165,6 +182,8 @@ The {current_label_text} schedule is treated as the current strategy. The {candi
 {roi_section(summary)}
 
 {bounds_warning_section(cur, cand)}
+
+{audit_context_section(summary)}
 
 {diagnostics_section(cur, cand, current_label, candidate_label)}
 

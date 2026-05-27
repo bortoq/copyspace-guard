@@ -73,6 +73,9 @@ class CliTests(unittest.TestCase):
             self.assertTrue((out / "report_customer_current.json").exists())
             self.assertEqual(data["artifacts"]["schedule_current"], "schedule_customer_current.json")
             self.assertEqual(data["artifacts"]["report_current"], "report_customer_current.json")
+            self.assertIn("audit", data)
+            self.assertIn("audit_note", data["audit"])
+            self.assertIn("gap_vs_greedy", data["audit"])
 
     def test_validate_artifact_command(self):
         with tempfile.TemporaryDirectory() as td:

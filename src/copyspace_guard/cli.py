@@ -125,6 +125,16 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             "report_html": "report.html",
         },
     }
+    if current_label == "customer_current":
+        customer_ticks = rep_current.ticks_total
+        gap_vs_greedy = 0.0 if customer_ticks <= 0 else (customer_ticks - rep_greedy.ticks_total) / customer_ticks
+        summary["audit"] = {
+            "audit_note": (
+                "gap_to_lower_bound reflects an abstract model without topology. "
+                "If your solver accounts for topology constraints, gap > 0 may be expected."
+            ),
+            "gap_vs_greedy": gap_vs_greedy,
+        }
     validate_summary_contract(summary)
     dump_json(outdir / "summary.json", summary)
     write_reports(outdir, summary)
