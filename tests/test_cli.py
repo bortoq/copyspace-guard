@@ -249,6 +249,21 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(data["case_count"], 3)
             self.assertEqual(data["failures"], [])
 
+    def test_bench_bounds_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            rc = run_cli(
+                "bench-bounds",
+                "--outdir", td,
+                "--min-slots", "32",
+                "--max-slots", "64",
+                "--step-slots", "32",
+                "--max-total-seconds", "30",
+            )
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads((Path(td) / "bench_bounds.json").read_text(encoding="utf-8"))
+            self.assertGreaterEqual(data["case_count"], 2)
+            self.assertEqual(data["failures"], [])
+
     def test_import_csv_with_mapping(self):
         with tempfile.TemporaryDirectory() as td:
             src = Path(td) / "custom.csv"

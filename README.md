@@ -219,6 +219,7 @@ make production-check
 
 ```bash
 copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
+copyspace-guard bench-bounds --outdir artifacts/bench-bounds --min-slots 32 --max-slots 256 --step-slots 32
 ```
 
 

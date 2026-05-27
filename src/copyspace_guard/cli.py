@@ -18,6 +18,7 @@ from .core import (
     instance_from_csv,
     load_config,
     load_json,
+    lower_bound_components,
     validate_artifact_contract,
     validate_summary_contract,
     schedule_from_csv,
@@ -479,19 +480,117 @@ def cmd_bench_suite(args: argparse.Namespace) -> int:
             failures.append(f"{name}: elapsed {elapsed:.6f}s exceeds --max-case-seconds {args.max_case_seconds}")
     if args.max_total_seconds is not None and total_elapsed > args.max_total_seconds:
         failures.append(f"total elapsed {total_elapsed:.6f}s exceeds --max-total-seconds {args.max_total_seconds}")
+    bounds_start = time.perf_counter()
+    bounds_args = argparse.Namespace(
+        outdir=str(outdir / "bounds"),
+        min_slots=32,
+        max_slots=256,
+        step_slots=32,
+        bw=1048576,
+        patterns="ring,pair-plus-clique",
+        bounds_subset_limit=20,
+        max_case_seconds=args.max_case_seconds,
+        max_total_seconds=None,
+    )
+    bounds_rc = cmd_bench_bounds(bounds_args)
+    bounds_elapsed = time.perf_counter() - bounds_start
+    if bounds_rc != 0:
+        failures.append("bounds benchmark failed")
     suite = {
         "version": 0,
-        "elapsed_seconds": total_elapsed,
+        "elapsed_seconds": total_elapsed + bounds_elapsed,
         "case_count": len(results),
         "failures": failures,
         "cases": results,
+        "bounds_bench": {
+            "outdir": "bounds",
+            "elapsed_seconds": bounds_elapsed,
+            "status": "PASS" if bounds_rc == 0 else "FAIL",
+        },
     }
     outdir.mkdir(parents=True, exist_ok=True)
     dump_json(outdir / "bench_suite.json", suite)
-    print(f"bench-suite elapsed={total_elapsed:.6f}s cases={len(results)} failures={len(failures)}")
+    print(f"bench-suite elapsed={total_elapsed + bounds_elapsed:.6f}s cases={len(results)} failures={len(failures)}")
     for result in results:
         greedy = cast(dict[str, Any], result["greedy"])
         print(f"- {result['name']} elapsed={float(result['elapsed_seconds']):.6f}s greedy_ticks={greedy['ticks_total']}")
+    if failures:
+        for failure in failures:
+            print(f"FAIL {failure}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def _make_bounds_bench_instance(*, slots: int, pattern: str, bw: int) -> dict[str, Any]:
+    demands: list[dict[str, int]] = []
+    if pattern == "ring":
+        for i in range(slots):
+            demands.append({"src_slot": i, "dst_slot": (i + 1) % slots, "bits_total": bw})
+    elif pattern == "pair-plus-clique":
+        pair_count = slots // 3
+        offset = slots - pair_count
+        for i in range(pair_count):
+            demands.append({"src_slot": i, "dst_slot": offset + i, "bits_total": 13 * bw})
+        clique = list(range(max(0, pair_count - 5), pair_count))
+        for i in range(len(clique)):
+            for j in range(i + 1, len(clique)):
+                demands.append({"src_slot": clique[i], "dst_slot": clique[j], "bits_total": 3 * bw})
+    else:
+        for i in range(slots):
+            demands.append({"src_slot": i, "dst_slot": (i + 1) % slots, "bits_total": bw})
+            demands.append({"src_slot": i, "dst_slot": (i + 2) % slots, "bits_total": bw})
+    return {
+        "version": 0,
+        "model": "STRICT1",
+        "slots": slots,
+        "copy_bw_bits_per_tick": bw,
+        "demands": demands,
+    }
+
+
+def cmd_bench_bounds(args: argparse.Namespace) -> int:
+    outdir = prepare_output_dir(Path(args.outdir))
+    if args.min_slots < 2 or args.max_slots < args.min_slots or args.step_slots <= 0:
+        raise ValueError("invalid slot range for bench-bounds")
+    if args.bw <= 0:
+        raise ValueError("--bw must be > 0")
+    patterns = [p.strip() for p in args.patterns.split(",") if p.strip()]
+    if not patterns:
+        raise ValueError("no benchmark patterns selected")
+
+    t0 = time.perf_counter()
+    cases: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for pattern in patterns:
+        for slots in range(args.min_slots, args.max_slots + 1, args.step_slots):
+            inst = _make_bounds_bench_instance(slots=slots, pattern=pattern, bw=args.bw)
+            t_case = time.perf_counter()
+            lbs = lower_bound_components(inst, exhaustive_subset_limit=args.bounds_subset_limit)
+            elapsed = time.perf_counter() - t_case
+            case = {
+                "pattern": pattern,
+                "slots": slots,
+                "elapsed_seconds": elapsed,
+                "lower_bound_ticks": int(lbs["lower_bound_ticks"]),
+                "density_lower_bound": int(lbs["density_lower_bound"]),
+                "witness_kind": str(cast(dict[str, Any], lbs["lower_bound_witness"]).get("kind", "")),
+                "bounds_complete": bool(lbs["bounds_complete"]),
+            }
+            if args.max_case_seconds is not None and elapsed > args.max_case_seconds:
+                failures.append(f"{pattern}/{slots}: elapsed {elapsed:.6f}s exceeds --max-case-seconds {args.max_case_seconds}")
+            cases.append(case)
+    total_elapsed = time.perf_counter() - t0
+    if args.max_total_seconds is not None and total_elapsed > args.max_total_seconds:
+        failures.append(f"total elapsed {total_elapsed:.6f}s exceeds --max-total-seconds {args.max_total_seconds}")
+    summary = {
+        "version": 0,
+        "elapsed_seconds": total_elapsed,
+        "case_count": len(cases),
+        "failures": failures,
+        "cases": cases,
+    }
+    dump_json(outdir / "bench_bounds.json", summary)
+    print(f"bench-bounds elapsed={total_elapsed:.6f}s cases={len(cases)} failures={len(failures)}")
     if failures:
         for failure in failures:
             print(f"FAIL {failure}", file=sys.stderr)
@@ -702,6 +801,18 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
     b.add_argument("--outdir", default="artifacts/bench")
     b.set_defaults(func=cmd_bench)
+
+    bb = sub.add_parser("bench-bounds", help="benchmark lower-bound algorithms on synthetic STRICT1 instances")
+    bb.add_argument("--outdir", default="artifacts/bench-bounds")
+    bb.add_argument("--min-slots", type=int, default=32)
+    bb.add_argument("--max-slots", type=int, default=256)
+    bb.add_argument("--step-slots", type=int, default=32)
+    bb.add_argument("--bw", type=int, default=1048576)
+    bb.add_argument("--patterns", default="ring,pair-plus-clique", help="comma-separated patterns: ring,pair-plus-clique,ring2")
+    bb.add_argument("--bounds-subset-limit", type=int, default=20)
+    bb.add_argument("--max-case-seconds", type=float, default=None)
+    bb.add_argument("--max-total-seconds", type=float, default=None)
+    bb.set_defaults(func=cmd_bench_bounds)
 
     bs = sub.add_parser("bench-suite", help="run production-oriented synthetic performance smoke suite")
     bs.add_argument("--outdir", default="artifacts/bench-suite")
