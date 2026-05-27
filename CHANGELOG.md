@@ -11,6 +11,9 @@ Highlights:
 - Added community/project docs: `CONTRIBUTING.md`, `GOVERNANCE.md`, `CODE_OF_CONDUCT.md`, PR/issue templates, and `CODEOWNERS`.
 - Added importer hardening and expanded importer test coverage (including happy-path parsing).
 - Added optional `--max-gap-vs-greedy` threshold directly to `audit`.
+- Fixed deterministic tie handling in fractional odd-subset lower-bound selection.
+- Added `--max-gap` support in `audit` for one-step CI gating.
+- Added explicit test coverage for gate warning visibility when `bounds_complete=false`.
 
 ## v0.2.4 — 2026-05-27
 

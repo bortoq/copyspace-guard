@@ -166,11 +166,12 @@ def cmd_audit(args: argparse.Namespace) -> int:
         rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
     if args.max_output_ticks is not None and rep.ticks_total > args.max_output_ticks:
         raise ValueError(f"customer_current ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+    gate_fail_reasons: list[str] = []
     if args.max_gap is not None:
         if not rep.bounds_complete:
-            raise ValueError("bounds_complete=false: gap is a lower estimate only; use --max-gap-vs-greedy or relax threshold")
-        if rep.gap_to_lower_bound > args.max_gap:
-            raise ValueError(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} exceeds --max-gap {args.max_gap:.6f}")
+            gate_fail_reasons.append("bounds_complete=false: gap is a lower estimate only; use --max-gap-vs-greedy or relax threshold")
+        elif rep.gap_to_lower_bound > args.max_gap:
+            gate_fail_reasons.append(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} exceeds --max-gap {args.max_gap:.6f}")
     gap_vs_greedy = None
     if args.max_gap_vs_greedy is not None:
         rep_greedy = validate_ticks_iter(inst, iter_greedy(inst), max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
@@ -179,7 +180,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
         else:
             gap_vs_greedy = 0.0
         if gap_vs_greedy > args.max_gap_vs_greedy:
-            raise ValueError(f"gap_vs_greedy {gap_vs_greedy:.6f} exceeds --max-gap-vs-greedy {args.max_gap_vs_greedy:.6f}")
+            gate_fail_reasons.append(f"gap_vs_greedy {gap_vs_greedy:.6f} exceeds --max-gap-vs-greedy {args.max_gap_vs_greedy:.6f}")
     dump_json(outdir / "instance.json", inst)
     dump_json(outdir / "schedule_customer_current.json", schedule)
     write_schedule_csv(outdir / "schedule_customer_current.csv", schedule)
@@ -226,6 +227,11 @@ def cmd_audit(args: argparse.Namespace) -> int:
     print(f"customer_current: status={rep.status} ticks={rep.ticks_total} lb={rep.lower_bound_ticks} gap={rep.gap_to_lower_bound:.6f} util={rep.utilization:.4f}")
     if gap_vs_greedy is not None:
         print(f"gap_vs_greedy={gap_vs_greedy:.6f}")
+    if gate_fail_reasons:
+        print("AUDIT GATE FAIL", file=sys.stderr)
+        for reason in gate_fail_reasons:
+            print(f"- {reason}", file=sys.stderr)
+        return 2
     return 0 if rep.status == "PASS" else 2
 
 

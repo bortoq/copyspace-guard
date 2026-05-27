@@ -365,7 +365,7 @@ class CliErrorTests(unittest.TestCase):
                 "--outdir", str(out),
                 check=False,
             )
-            self.assertEqual(rc.returncode, 1)
+            self.assertEqual(rc.returncode, 2)
             self.assertIn("max-gap-vs-greedy", rc.stderr)
 
     def test_audit_max_gap_threshold(self):
@@ -389,8 +389,24 @@ class CliErrorTests(unittest.TestCase):
                 "--outdir", str(out),
                 check=False,
             )
-            self.assertEqual(rc.returncode, 1)
+            self.assertEqual(rc.returncode, 2)
             self.assertIn("--max-gap", rc.stderr)
+
+    def test_audit_max_gap_rejected_when_bounds_incomplete(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--slots", "32",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap", "0.5",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 2)
+            self.assertIn("bounds_complete=false", rc.stderr)
 
     def test_compare_command(self):
         with tempfile.TemporaryDirectory() as td:
@@ -409,6 +425,33 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(data["candidate_label"], "schedule_b")
             self.assertTrue((out / "report_schedule_a.json").exists())
             self.assertTrue((out / "report_schedule_b.json").exists())
+
+    def test_compare_command_csv_schedules(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "compare"
+            rc = run_cli(
+                "compare",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule-a", "examples/current_schedule.csv",
+                "--schedule-b", "examples/current_schedule.csv",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(data["comparison"]["saved_ticks"], 0)
+
+    def test_audit_requires_schedule(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
 
     def test_import_commands_limits_and_errors(self):
         with tempfile.TemporaryDirectory() as td:

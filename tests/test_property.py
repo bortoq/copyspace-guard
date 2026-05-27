@@ -69,6 +69,15 @@ else:
             lbs = lower_bound_components(inst)
             self.assertLessEqual(lbs["lower_bound_ticks"], rep.ticks_total)
 
+        @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=50, max_demands=20, max_bits=8))
+        def test_bounds_witness_deterministic(self, inst: dict[str, Any]) -> None:
+            assume(int(inst["slots"]) > 24)
+            assume(inst["model"] == "STRICT1")
+            lbs1 = lower_bound_components(inst)
+            lbs2 = lower_bound_components(inst)
+            self.assertEqual(lbs1["lower_bound_witness"].get("kind"), lbs2["lower_bound_witness"].get("kind"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,10 +10,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from copyspace_guard.importers import import_csv_with_map, import_msccl_xml, import_taccl_json  # noqa: E402
+from copyspace_guard.importers import _schedule_from_rows, import_csv_with_map, import_msccl_xml, import_taccl_json  # noqa: E402
 
 
 class ImportersTests(unittest.TestCase):
+    def test_import_csv_with_map_happy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / "ok.csv"
+            p.write_text("step,from,to,bits\n0,0,1,8\n1,1,2,4\n", encoding="utf-8")
+            sched = import_csv_with_map(p, tick="step", src="from", dst="to", length="bits")
+            self.assertEqual(sched["ticks"][0][0]["src_slot"], 0)
+            self.assertEqual(sched["ticks"][0][0]["len_bits"], 8)
+
     def test_import_taccl_json_happy_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -23,6 +32,14 @@ class ImportersTests(unittest.TestCase):
             self.assertEqual(sched["version"], 0)
             self.assertEqual(sched["ticks"][0][0]["src_slot"], 0)
             self.assertEqual(sched["ticks"][1][0]["dst_slot"], 2)
+
+    def test_import_taccl_json_custom_model(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / "ok.json"
+            p.write_text(json.dumps({"ops": [{"step": 0, "from": 0, "to": 1, "bits": 8}]}), encoding="utf-8")
+            sched = import_taccl_json(p, model="READ1_WRITE1")
+            self.assertEqual(sched["model"], "READ1_WRITE1")
 
     def test_import_msccl_xml_happy_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -82,6 +99,10 @@ class ImportersTests(unittest.TestCase):
             json_path.write_text(json.dumps({"ops": [{"step": 0, "from": 0, "to": 1, "bits": 1}, {"step": 1, "from": 1, "to": 2, "bits": 1}]}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "--max-rows"):
                 import_taccl_json(json_path, max_rows=1)
+
+    def test_schedule_from_rows_sorts_ticks(self) -> None:
+        sched = _schedule_from_rows([(2, 1, 2, 4), (0, 0, 1, 8)])
+        self.assertEqual(sched["ticks"][0][0]["src_slot"], 0)
 
 
 if __name__ == "__main__":
