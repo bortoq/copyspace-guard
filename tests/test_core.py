@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from copyspace_guard.core import (  # noqa: E402
+    BOUNDS_REASON_AUTO_EXHAUSTIVE,
+    BOUNDS_REASON_AUTO_PARTIAL,
+    BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+    BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     MAX_EXHAUSTIVE_SUBSET_LIMIT,
     compute_roi,
     exact_optimal_ticks,
@@ -301,6 +305,50 @@ class ModelExtensionTests(unittest.TestCase):
         data = rep.to_dict()
         self.assertIn("bounds_mode", data)
         self.assertIn("bounds_complete_reason", data)
+
+    def test_reason_complete_invariant(self):
+        expected = {
+            BOUNDS_REASON_AUTO_EXHAUSTIVE: True,
+            BOUNDS_REASON_AUTO_PARTIAL: False,
+            BOUNDS_REASON_EXACT_FRACTIONAL_MODE: True,
+            BOUNDS_REASON_READ1_WRITE1_COMPLETE: True,
+        }
+        cases = [
+            {
+                "version": 0,
+                "model": "STRICT1",
+                "slots": 4,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+            },
+            {
+                "version": 0,
+                "model": "STRICT1",
+                "slots": 32,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+            },
+            {
+                "version": 0,
+                "model": "STRICT1",
+                "slots": 4,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+                "_mode": "fractional_exact",
+            },
+            {
+                "version": 0,
+                "model": "READ1_WRITE1",
+                "slots": 4,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+            },
+        ]
+        for inst in cases:
+            mode = inst.pop("_mode", "auto")
+            lbs = lower_bound_components(inst, strict1_bounds_mode=mode)
+            reason = lbs["bounds_complete_reason"]
+            self.assertEqual(lbs["bounds_complete"], expected[reason])
 
     def test_bounds_limit_has_hard_cap(self):
         inst = {

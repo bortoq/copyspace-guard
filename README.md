@@ -189,6 +189,12 @@ Bounds mode guidance:
 - `bounds_mode`: the mode used for bound computation.
 - `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `read1_write1_complete`.
 
+Reason guidance:
+- `auto_exhaustive`: exhaustive STRICT1 subset scan was completed; `gap_to_lower_bound` is reliable for gating.
+- `auto_partial`: scalable STRICT1 heuristics were used; treat `gap_to_lower_bound` as lower estimate and prefer `--max-gap-vs-greedy`.
+- `exact_fractional_mode`: exact odd-subset fractional mode was used (guarded slot limit); lower-bound quality is stronger than `auto`.
+- `read1_write1_complete`: READ1_WRITE1 bound path is complete for the current model.
+
 ### Import external schedule formats
 
 ```bash

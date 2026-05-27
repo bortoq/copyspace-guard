@@ -101,9 +101,9 @@ def _strict1_bounds(
                     continue
                 frac_num = 2 * internal[mask]
                 frac_den = k - 1
-                lp_lb = math.ceil(frac_num / frac_den) if internal[mask] else 0
-                if lp_lb > frac_lb:
-                    frac_lb = lp_lb
+                mask_lb = math.ceil(frac_num / frac_den) if internal[mask] else 0
+                if mask_lb > frac_lb:
+                    frac_lb = mask_lb
                     best_subset = [i for i in range(slots) if mask & (1 << i)]
                     best_internal = internal[mask]
             if frac_lb > density_lb:

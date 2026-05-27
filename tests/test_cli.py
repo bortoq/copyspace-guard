@@ -214,6 +214,8 @@ class CliTests(unittest.TestCase):
             rc = run_cli("gate", str(out / "summary.json"), "--report", "greedy", "--max-gap", "1.0", check=False)
             self.assertEqual(rc.returncode, 2)
             self.assertIn("bounds_complete=false", rc.stderr)
+            self.assertIn("auto_partial", rc.stderr)
+            self.assertIn("--max-gap-vs-greedy", rc.stderr)
 
     def test_anonymize_schedule(self):
         with tempfile.TemporaryDirectory() as td:

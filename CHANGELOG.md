@@ -20,6 +20,8 @@ Highlights:
 - Refactored internal edge-sum helper contract to derive matrix size internally (removes unsafe `n` argument).
 - Added machine-readable report fields `bounds_mode` and `bounds_complete_reason`, with schema validation support.
 - Added test coverage for all `bounds_complete_reason` paths and report serialization of new fields.
+- Exported public bounds reason constants for API consumers.
+- Improved gate failure text for incomplete bounds with explicit reason tag and `--max-gap-vs-greedy` guidance.
 
 ## v0.2.4 — 2026-05-27
 
