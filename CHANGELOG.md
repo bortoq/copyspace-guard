@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.5 — 2026-05-27
+
+Post-0.2.4 feature and quality updates.
+
+Highlights:
+
+- Added `copyspace-guard compare` for two external schedules on one demand matrix.
+- Added `copyspace-guard bench-bounds` and integrated bounds benchmarking into `bench-suite`.
+- Added community/project docs: `CONTRIBUTING.md`, `GOVERNANCE.md`, `CODE_OF_CONDUCT.md`, PR/issue templates, and `CODEOWNERS`.
+- Added importer hardening and expanded importer test coverage (including happy-path parsing).
+- Added optional `--max-gap-vs-greedy` threshold directly to `audit`.
+
 ## v0.2.4 — 2026-05-27
 
 Audit-first release.

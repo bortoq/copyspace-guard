@@ -166,6 +166,15 @@ def cmd_audit(args: argparse.Namespace) -> int:
         rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
     if args.max_output_ticks is not None and rep.ticks_total > args.max_output_ticks:
         raise ValueError(f"customer_current ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+    gap_vs_greedy = None
+    if args.max_gap_vs_greedy is not None:
+        rep_greedy = validate_ticks_iter(inst, iter_greedy(inst), max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
+        if rep.ticks_total > 0:
+            gap_vs_greedy = (rep.ticks_total - rep_greedy.ticks_total) / rep.ticks_total
+        else:
+            gap_vs_greedy = 0.0
+        if gap_vs_greedy > args.max_gap_vs_greedy:
+            raise ValueError(f"gap_vs_greedy {gap_vs_greedy:.6f} exceeds --max-gap-vs-greedy {args.max_gap_vs_greedy:.6f}")
     dump_json(outdir / "instance.json", inst)
     dump_json(outdir / "schedule_customer_current.json", schedule)
     write_schedule_csv(outdir / "schedule_customer_current.csv", schedule)
@@ -192,6 +201,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
                 "gap_to_lower_bound reflects an abstract model without topology. "
                 "If your solver accounts for topology constraints, gap > 0 may be expected."
             ),
+            "gap_vs_greedy": gap_vs_greedy,
         },
         "artifacts": {
             "instance": "instance.json",
@@ -209,6 +219,8 @@ def cmd_audit(args: argparse.Namespace) -> int:
     write_reports(outdir, summary)
     print(f"Copy-Space Guard audit written to: {outdir}")
     print(f"customer_current: status={rep.status} ticks={rep.ticks_total} lb={rep.lower_bound_ticks} gap={rep.gap_to_lower_bound:.6f} util={rep.utilization:.4f}")
+    if gap_vs_greedy is not None:
+        print(f"gap_vs_greedy={gap_vs_greedy:.6f}")
     return 0 if rep.status == "PASS" else 2
 
 
@@ -802,6 +814,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
+    au.add_argument("--max-gap-vs-greedy", type=float, default=None, help="optional CI threshold for (current_ticks-greedy_ticks)/current_ticks")
     au.add_argument("--outdir", default="artifacts/audit")
     au.set_defaults(func=cmd_audit)
 

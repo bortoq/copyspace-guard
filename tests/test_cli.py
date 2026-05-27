@@ -327,6 +327,31 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(data["current_label"], "customer_current")
             self.assertEqual(data["candidate_label"], "customer_current")
             self.assertTrue((out / "report.md").exists())
+            self.assertIn("gap_vs_greedy", data.get("audit", {}))
+
+    def test_audit_max_gap_vs_greedy_threshold(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap-vs-greedy", "0.4",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap-vs-greedy", "0.2",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("max-gap-vs-greedy", rc.stderr)
 
     def test_compare_command(self):
         with tempfile.TemporaryDirectory() as td:

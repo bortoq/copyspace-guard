@@ -14,6 +14,26 @@ from copyspace_guard.importers import import_csv_with_map, import_msccl_xml, imp
 
 
 class ImportersTests(unittest.TestCase):
+    def test_import_taccl_json_happy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / "ok.json"
+            p.write_text(json.dumps({"ops": [{"step": 0, "from": 0, "to": 1, "bits": 8}, {"step": 1, "from": 1, "to": 2, "bits": 4}]}), encoding="utf-8")
+            sched = import_taccl_json(p)
+            self.assertEqual(sched["version"], 0)
+            self.assertEqual(sched["ticks"][0][0]["src_slot"], 0)
+            self.assertEqual(sched["ticks"][1][0]["dst_slot"], 2)
+
+    def test_import_msccl_xml_happy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / "ok.xml"
+            p.write_text("<algorithm><op step='0' src='0' dst='1' cnt='8'/><op step='1' src='1' dst='2' cnt='4'/></algorithm>", encoding="utf-8")
+            sched = import_msccl_xml(p)
+            self.assertEqual(sched["version"], 0)
+            self.assertEqual(sched["ticks"][0][0]["len_bits"], 8)
+            self.assertEqual(sched["ticks"][1][0]["src_slot"], 1)
+
     def test_import_csv_with_map_errors(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
