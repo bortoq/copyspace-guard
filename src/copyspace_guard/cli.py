@@ -32,6 +32,7 @@ from .core import (
     write_schedule_csv,
 )
 from .report import write_reports
+from .importers import import_csv_with_map, import_msccl_xml, import_taccl_json
 
 
 def cmd_analyze(args: argparse.Namespace) -> int:
@@ -166,6 +167,46 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_schedule_csv_to_json(args: argparse.Namespace) -> int:
     sched = schedule_from_csv(args.csv, fill_empty_ticks=not args.compact_ticks, model=args.model)
+    out_path = prepare_output_file(Path(args.out))
+    dump_json(out_path, sched)
+    print(f"schedule JSON written to: {out_path}")
+    return 0
+
+
+def cmd_import_msccl(args: argparse.Namespace) -> int:
+    sched = import_msccl_xml(args.xml, model=args.model)
+    out_path = prepare_output_file(Path(args.out))
+    dump_json(out_path, sched)
+    print(f"schedule JSON written to: {out_path}")
+    return 0
+
+
+def cmd_import_taccl(args: argparse.Namespace) -> int:
+    sched = import_taccl_json(args.json, model=args.model)
+    out_path = prepare_output_file(Path(args.out))
+    dump_json(out_path, sched)
+    print(f"schedule JSON written to: {out_path}")
+    return 0
+
+
+def cmd_import_csv(args: argparse.Namespace) -> int:
+    mapping: dict[str, str] = {}
+    for token in args.map:
+        if "=" not in token:
+            raise ValueError(f"invalid --map value {token!r}; expected key=column")
+        key, value = token.split("=", 1)
+        mapping[key.strip()] = value.strip()
+    for needed in ("tick", "src", "dst", "len"):
+        if needed not in mapping:
+            raise ValueError(f"missing mapping for {needed}; expected --map {needed}=<column>")
+    sched = import_csv_with_map(
+        args.csv,
+        tick=mapping["tick"],
+        src=mapping["src"],
+        dst=mapping["dst"],
+        length=mapping["len"],
+        model=args.model,
+    )
     out_path = prepare_output_file(Path(args.out))
     dump_json(out_path, sched)
     print(f"schedule JSON written to: {out_path}")
@@ -488,6 +529,25 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
     sc.add_argument("--compact-ticks", action="store_true", help="drop missing empty tick windows")
     sc.set_defaults(func=cmd_schedule_csv_to_json)
+
+    im = sub.add_parser("import-msccl", help="import an MSCCL XML schedule into schedule JSON")
+    im.add_argument("xml")
+    im.add_argument("--out", required=True)
+    im.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    im.set_defaults(func=cmd_import_msccl)
+
+    it = sub.add_parser("import-taccl", help="import a TACCL JSON schedule into schedule JSON")
+    it.add_argument("json")
+    it.add_argument("--out", required=True)
+    it.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    it.set_defaults(func=cmd_import_taccl)
+
+    ic = sub.add_parser("import-csv", help="import custom schedule CSV into schedule JSON with explicit column mapping")
+    ic.add_argument("--csv", required=True)
+    ic.add_argument("--map", action="append", default=[], help="mapping tokens: tick=col src=col dst=col len=col")
+    ic.add_argument("--out", required=True)
+    ic.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1")
+    ic.set_defaults(func=cmd_import_csv)
 
     va = sub.add_parser("validate-artifact", help="validate a generated v0 JSON artifact contract")
     va.add_argument("--kind", choices=["instance", "schedule", "report", "summary"], required=True)

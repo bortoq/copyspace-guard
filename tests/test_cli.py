@@ -227,3 +227,42 @@ class CliErrorTests(unittest.TestCase):
             data = json.loads((Path(td) / "bench_suite.json").read_text(encoding="utf-8"))
             self.assertEqual(data["case_count"], 3)
             self.assertEqual(data["failures"], [])
+
+    def test_import_csv_with_mapping(self):
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "custom.csv"
+            out = Path(td) / "schedule.json"
+            src.write_text("step,from,to,bits\n0,0,1,256\n1,1,2,256\n", encoding="utf-8")
+            rc = run_cli(
+                "import-csv",
+                "--csv", str(src),
+                "--map", "tick=step",
+                "--map", "src=from",
+                "--map", "dst=to",
+                "--map", "len=bits",
+                "--out", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(data["ticks"][0][0]["src_slot"], 0)
+            self.assertEqual(data["ticks"][1][0]["dst_slot"], 2)
+
+    def test_import_taccl_json(self):
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "taccl.json"
+            out = Path(td) / "schedule.json"
+            src.write_text(json.dumps({"ops": [{"step": 0, "from": 0, "to": 1, "bits": 128}]}), encoding="utf-8")
+            rc = run_cli("import-taccl", str(src), "--out", str(out))
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(data["ticks"][0][0]["len_bits"], 128)
+
+    def test_import_msccl_xml(self):
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "algo.xml"
+            out = Path(td) / "schedule.json"
+            src.write_text("<algo><op step='0' src='0' dst='1' cnt='64' /></algo>", encoding="utf-8")
+            rc = run_cli("import-msccl", str(src), "--out", str(out))
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(data["ticks"][0][0]["len_bits"], 64)
