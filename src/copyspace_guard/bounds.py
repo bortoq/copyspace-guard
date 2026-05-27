@@ -24,6 +24,23 @@ def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, in
     return slots, bw, model, edges
 
 
+def _compute_internal_edge_sums(w: List[List[int]], n: int) -> List[int]:
+    internal = [0] * (1 << n)
+    for mask in range(1, 1 << n):
+        lowbit = mask & -mask
+        v = lowbit.bit_length() - 1
+        prev = mask ^ lowbit
+        add = 0
+        m = prev
+        while m:
+            lb = m & -m
+            u = lb.bit_length() - 1
+            add += w[v][u]
+            m ^= lb
+        internal[mask] = internal[prev] + add
+    return internal
+
+
 def _strict1_bounds(
     slots: int,
     edges: List[Tuple[int, int, int]],
@@ -57,36 +74,35 @@ def _strict1_bounds(
             for s, t, c in edges:
                 w[s][t] += c
                 w[t][s] += c
-            internal = [0] * (1 << slots)
+            internal = _compute_internal_edge_sums(w, slots)
+            lp_lb = 0
+            frac_lb = 0
+            frac_num = 0
+            frac_den = 1
+            best_subset: list[int] = []
+            best_internal = 0
             for mask in range(1, 1 << slots):
-                lowbit = mask & -mask
-                v = lowbit.bit_length() - 1
-                prev = mask ^ lowbit
-                add = 0
-                m = prev
-                while m:
-                    lb = m & -m
-                    u = lb.bit_length() - 1
-                    add += w[v][u]
-                    m ^= lb
-                internal[mask] = internal[prev] + add
                 k = mask.bit_count()
                 if k < 3 or (k % 2 == 0):
                     continue
                 frac_num = 2 * internal[mask]
                 frac_den = k - 1
-                frac_lb = math.ceil(frac_num / frac_den) if internal[mask] else 0
-                if frac_lb > density_lb:
-                    density_lb = frac_lb
-                    witness = {
-                        "kind": "fractional_exact_odd_subset",
-                        "subset": [i for i in range(slots) if mask & (1 << i)],
-                        "subset_size": k,
-                        "internal_chunks": internal[mask],
-                        "fraction_numerator": frac_num,
-                        "fraction_denominator": frac_den,
-                        "formula": "ceil(2*E(S)/(abs(S)-1))",
-                    }
+                lp_lb = math.ceil(frac_num / frac_den) if internal[mask] else 0
+                if lp_lb > frac_lb:
+                    frac_lb = lp_lb
+                    best_subset = [i for i in range(slots) if mask & (1 << i)]
+                    best_internal = internal[mask]
+            if frac_lb > density_lb:
+                density_lb = frac_lb
+                witness = {
+                    "kind": "fractional_exact_odd_subset",
+                    "subset": best_subset,
+                    "subset_size": len(best_subset),
+                    "internal_chunks": best_internal,
+                    "fraction_numerator": 2 * best_internal,
+                    "fraction_denominator": max(1, len(best_subset) - 1),
+                    "formula": "ceil(2*E(S)/(abs(S)-1))",
+                }
         lower = max(degree_lb, capacity_lb, density_lb)
         return {
             "degree_lower_bound": degree_lb,
@@ -106,19 +122,8 @@ def _strict1_bounds(
         for s, t, c in edges:
             w[s][t] += c
             w[t][s] += c
-        internal = [0] * (1 << slots)
+        internal = _compute_internal_edge_sums(w, slots)
         for mask in range(1, 1 << slots):
-            lowbit = mask & -mask
-            v = lowbit.bit_length() - 1
-            prev = mask ^ lowbit
-            add = 0
-            m = prev
-            while m:
-                lb = m & -m
-                u = lb.bit_length() - 1
-                add += w[v][u]
-                m ^= lb
-            internal[mask] = internal[prev] + add
             k = mask.bit_count()
             cap = k // 2
             if cap <= 0:
@@ -225,19 +230,9 @@ def _strict1_bounds(
                 wc[i][j] += c
                 wc[j][i] += c
         if core_size >= 3:
-            internal = [0] * (1 << core_size)
+            internal = _compute_internal_edge_sums(wc, core_size)
+            lp_lb = 0
             for mask in range(1, 1 << core_size):
-                lowbit = mask & -mask
-                v = lowbit.bit_length() - 1
-                prev = mask ^ lowbit
-                add = 0
-                m = prev
-                while m:
-                    lb = m & -m
-                    u = lb.bit_length() - 1
-                    add += wc[v][u]
-                    m ^= lb
-                internal[mask] = internal[prev] + add
                 k = mask.bit_count()
                 if k < 3 or (k % 2 == 0):
                     continue

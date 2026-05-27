@@ -180,6 +180,10 @@ Note: `--max-gap-vs-greedy` runs deterministic `greedy` internally to compute th
 
 `--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
 `--bounds-mode fractional_exact` enables exact odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
+Bounds mode guidance:
+- `auto` (default): scalable heuristics and relaxations for large slot counts.
+- `fractional_exact`: exact odd-subset fractional lower bound for STRICT1 with guard `slots <= 24`.
+- Use `fractional_exact` for higher-confidence small/medium runs; use `auto` for large production runs.
 
 ### Import external schedule formats
 
@@ -204,6 +208,7 @@ copyspace-guard compare \
   --bw 256 \
   --schedule-a msccl.json \
   --schedule-b taccl.json \
+  --bounds-mode auto \
   --outdir artifacts/compare
 ```
 
@@ -216,7 +221,7 @@ Interpretation:
 ### Validate a schedule
 
 ```bash
-copyspace-guard validate artifacts/run/instance.json artifacts/run/schedule_greedy.json --report artifacts/run/validation.json
+copyspace-guard validate artifacts/run/instance.json artifacts/run/schedule_greedy.json --bounds-mode auto --report artifacts/run/validation.json
 ```
 
 ### Regenerate Markdown/HTML reports

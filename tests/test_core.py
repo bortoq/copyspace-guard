@@ -143,6 +143,56 @@ class ModelExtensionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fractional_exact is limited"):
             lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
 
+    def test_fractional_exact_lb_does_not_exceed_exact_optimal(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 6,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [
+                {"src_slot": 0, "dst_slot": 1, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 2, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 2, "dst_slot": 4, "bits_total": 1},
+                {"src_slot": 3, "dst_slot": 5, "bits_total": 1},
+                {"src_slot": 4, "dst_slot": 5, "bits_total": 1},
+            ],
+        }
+        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        opt = exact_optimal_ticks(inst)
+        self.assertLessEqual(lbs["lower_bound_ticks"], opt)
+
+    def test_fractional_exact_ge_auto(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 8,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [
+                {"src_slot": 0, "dst_slot": 1, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 2, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 2, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 4, "dst_slot": 5, "bits_total": 1},
+                {"src_slot": 5, "dst_slot": 6, "bits_total": 1},
+                {"src_slot": 6, "dst_slot": 7, "bits_total": 1},
+            ],
+        }
+        lbs_auto = lower_bound_components(inst, strict1_bounds_mode="auto")
+        lbs_frac = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        self.assertGreaterEqual(lbs_frac["density_lower_bound"], lbs_auto["density_lower_bound"])
+
+    def test_invalid_strict1_bounds_mode_rejected(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 2,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        with self.assertRaisesRegex(ValueError, "unsupported strict1_bounds_mode"):
+            lower_bound_components(inst, strict1_bounds_mode="invalid")
+
     def test_large_strict1_bounds_are_deterministic(self):
         demands = []
         for i in range(12):

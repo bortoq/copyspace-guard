@@ -20,6 +20,23 @@ The report currently computes these deterministic lower bounds:
 
 `lower_bound_ticks` is the maximum of these values.
 
+## STRICT1 bounds modes
+
+Copy-Space Guard supports two STRICT1 modes:
+
+- `auto` (default):
+  - exact subset-density up to `--bounds-subset-limit` (capped),
+  - deterministic heuristic/fractional/core relaxations for larger slot counts.
+- `fractional_exact`:
+  - computes exact odd-subset fractional lower bound
+    `ceil(max_S(2*E(S)/(abs(S)-1)))` over odd subsets,
+  - currently guarded to `slots <= 24` to avoid exponential blowups.
+
+`bounds_complete` semantics:
+
+- In `auto`, `bounds_complete` indicates whether exhaustive subset enumeration was used under the configured limit.
+- In `fractional_exact`, `bounds_complete=true` for accepted inputs (the mode rejects larger slot counts before report generation).
+
 ## Important limitation
 
 These are lower bounds, not a universal optimality proof for every possible

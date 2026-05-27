@@ -344,6 +344,19 @@ class CliErrorTests(unittest.TestCase):
             self.assertTrue((out / "report.md").exists())
             self.assertIn("gap_vs_greedy", data.get("audit", {}))
 
+    def test_audit_bounds_mode_fractional_exact(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--bounds-mode", "fractional_exact",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+
     def test_audit_max_gap_vs_greedy_threshold(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "audit"
@@ -420,6 +433,22 @@ class CliErrorTests(unittest.TestCase):
             )
             self.assertEqual(rc.returncode, 2)
             self.assertIn("bounds_complete=false", rc.stderr)
+
+    def test_audit_fractional_exact_rejects_slots_above_limit(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--slots", "30",
+                "--schedule", "examples/current_schedule.csv",
+                "--bounds-mode", "fractional_exact",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("fractional_exact is limited", rc.stderr)
 
     def test_audit_accumulates_multiple_gate_reasons(self):
         with tempfile.TemporaryDirectory() as td:

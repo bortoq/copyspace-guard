@@ -36,6 +36,13 @@ from .report import write_reports
 from .importers import import_csv_with_map, import_msccl_xml, import_taccl_json
 
 
+def _check_bounds_mode_slots(inst: dict[str, Any], bounds_mode: str) -> None:
+    if bounds_mode == "fractional_exact" and str(inst.get("model", "STRICT1")) == "STRICT1":
+        slots = int(inst.get("slots", 0))
+        if slots > 24:
+            raise ValueError(f"fractional_exact is limited to <= 24 slots; got {slots}")
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     outdir = prepare_output_dir(Path(args.outdir))
     if args.max_errors is not None and args.max_errors < 0:
@@ -43,6 +50,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     if args.bounds_subset_limit < 0:
         raise ValueError("--bounds-subset-limit must be >= 0")
     inst = instance_from_csv(args.csv, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
+    _check_bounds_mode_slots(inst, args.bounds_mode)
     if args.current_schedule_json and args.current_schedule_csv:
         raise SystemExit("use only one of --current-schedule-json or --current-schedule-csv")
     if args.max_slots is not None and int(inst["slots"]) > args.max_slots:
@@ -190,6 +198,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     if args.bounds_subset_limit < 0:
         raise ValueError("--bounds-subset-limit must be >= 0")
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
+    _check_bounds_mode_slots(inst, args.bounds_mode)
     if args.schedule_json and args.schedule_csv:
         raise SystemExit("use only one of --schedule-json or --schedule-csv")
     if not args.schedule_json and not args.schedule_csv:
@@ -303,6 +312,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
     if args.bounds_subset_limit < 0:
         raise ValueError("--bounds-subset-limit must be >= 0")
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
+    _check_bounds_mode_slots(inst, args.bounds_mode)
     sched_a = _load_schedule_auto(args.schedule_a, model=str(inst.get("model", "STRICT1")))
     sched_b = _load_schedule_auto(args.schedule_b, model=str(inst.get("model", "STRICT1")))
     rep_a = validate_schedule(
@@ -389,6 +399,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     if args.bounds_subset_limit < 0:
         raise ValueError("--bounds-subset-limit must be >= 0")
     inst = load_json(args.instance)
+    _check_bounds_mode_slots(inst, args.bounds_mode)
     sched = load_json(args.schedule)
     rep = validate_schedule(
         inst,
