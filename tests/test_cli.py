@@ -35,6 +35,25 @@ class CliTests(unittest.TestCase):
         self.assertEqual(data["status"], "PASS")
         self.assertGreaterEqual(len(data["checks"]), 1)
 
+    def test_doctor_recommendations_for_large_instance(self):
+        rc = run_cli(
+            "doctor",
+            "--root",
+            str(ROOT),
+            "--demands",
+            "examples/ring15.csv",
+            "--bw",
+            "256",
+            "--slots",
+            "256",
+            "--json",
+        )
+        self.assertEqual(rc.returncode, 0)
+        data = json.loads(rc.stdout)
+        joined = "\n".join(data.get("recommendations", []))
+        self.assertIn("--max-gap-vs-greedy", joined)
+        self.assertIn("fractional_heuristic", joined)
+
     def test_summary_only_does_not_emit_schedules(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"
@@ -556,6 +575,19 @@ class CliErrorTests(unittest.TestCase):
                 data["reports"]["greedy"]["lower_bound_witness"]["kind"],
                 {"full_graph_capacity", "fractional_exact_odd_subset"},
             )
+
+    def test_analyze_bounds_mode_fractional_heuristic(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--bounds-mode", "fractional_heuristic",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
 
     def test_compare_command_csv_schedules(self):
         with tempfile.TemporaryDirectory() as td:

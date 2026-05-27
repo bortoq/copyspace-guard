@@ -4,18 +4,20 @@ import math
 import heapq
 from typing import Any, Dict, List, Tuple
 
+from .bounds_reason import BoundsReason
 from .io import demand_map, validate_instance
 from .types import Instance, READ1_WRITE1, STRICT1
 
 DEFAULT_EXHAUSTIVE_SUBSET_LIMIT = 20
 MAX_EXHAUSTIVE_SUBSET_LIMIT = 24
 DEFAULT_STRICT1_BOUNDS_MODE = "auto"
-STRICT1_BOUNDS_MODES = {"auto", "fractional_exact"}
+STRICT1_BOUNDS_MODES = {"auto", "fractional_exact", "fractional_heuristic"}
 MAX_FRACTIONAL_EXACT_SLOTS = 24
-BOUNDS_REASON_AUTO_EXHAUSTIVE = "auto_exhaustive"
-BOUNDS_REASON_AUTO_PARTIAL = "auto_partial"
-BOUNDS_REASON_EXACT_FRACTIONAL_MODE = "exact_fractional_mode"
-BOUNDS_REASON_READ1_WRITE1_COMPLETE = "read1_write1_complete"
+BOUNDS_REASON_AUTO_EXHAUSTIVE = BoundsReason.AUTO_EXHAUSTIVE.value
+BOUNDS_REASON_AUTO_PARTIAL = BoundsReason.AUTO_PARTIAL.value
+BOUNDS_REASON_EXACT_FRACTIONAL_MODE = BoundsReason.EXACT_FRACTIONAL_MODE.value
+BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL = BoundsReason.FRACTIONAL_HEURISTIC_PARTIAL.value
+BOUNDS_REASON_READ1_WRITE1_COMPLETE = BoundsReason.READ1_WRITE1_COMPLETE.value
 
 
 def _chunk_edges(inst: Instance) -> Tuple[int, int, str, List[Tuple[int, int, int]]]:
@@ -132,7 +134,10 @@ def _strict1_bounds(
             "strict1_bounds_mode": strict1_bounds_mode,
         }
 
-    if bounds_complete and slots >= 2:
+    run_exhaustive = strict1_bounds_mode == "auto" and bounds_complete
+    run_large_heuristics = strict1_bounds_mode == "fractional_heuristic" or (strict1_bounds_mode == "auto" and not bounds_complete)
+
+    if run_exhaustive and slots >= 2:
         w, internal = _compute_edge_internal(slots, edges)
         for mask in range(1, 1 << slots):
             k = mask.bit_count()
@@ -149,7 +154,7 @@ def _strict1_bounds(
                     "internal_chunks": internal[mask],
                     "tick_capacity_chunks": cap,
                 }
-    elif slots >= 2:
+    elif run_large_heuristics and slots >= 2:
         # Deterministic large-instance fallback: evaluate dense subsets around
         # high-degree vertices to tighten the lower bound without full 2^N scan.
         w = _build_weight_matrix(slots, edges)
@@ -255,6 +260,10 @@ def _strict1_bounds(
                         "formula": "ceil(2*E(S)/(abs(S)-1))",
                         "core_size": core_size,
                     }
+
+    if strict1_bounds_mode == "fractional_heuristic":
+        bounds_complete = False
+        bounds_complete_reason = BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL
 
     lower = max(degree_lb, capacity_lb, density_lb)
     return {

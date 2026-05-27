@@ -922,12 +922,39 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     checks = doctor_checks(root)
     failed = [check for check in checks if not check["ok"]]
+    recommendations: list[str] = []
+    if args.demands:
+        inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, model=args.model)
+        slots = int(inst["slots"])
+        if slots > 20:
+            recommendations.append(
+                f"slots={slots}: gap_to_lower_bound is a lower estimate for large STRICT1 instances; use --max-gap-vs-greedy"
+            )
+            recommendations.append("recommended bounds mode: --bounds-mode fractional_heuristic")
+            recommendations.append("recommended CI metric: --max-gap-vs-greedy <threshold>")
+        else:
+            recommendations.append(f"slots={slots}: gap_to_lower_bound can be exact on exhaustive path")
+            recommendations.append("recommended bounds mode: --bounds-mode auto")
+            recommendations.append("recommended CI metric: --max-gap <threshold> (optionally also --max-gap-vs-greedy)")
     if args.json:
-        print(json.dumps({"status": "FAIL" if failed else "PASS", "root": str(root), "checks": checks}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "status": "FAIL" if failed else "PASS",
+                    "root": str(root),
+                    "checks": checks,
+                    "recommendations": recommendations,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 1 if failed else 0
     for check in checks:
         status = "OK" if check["ok"] else "FAIL"
         print(f"{status} {check['name']} {check['detail']}")
+    for rec in recommendations:
+        print(f"INFO {rec}")
     if failed:
         print(f"doctor failed: {len(failed)} check(s) failed", file=sys.stderr)
         return 1
@@ -953,7 +980,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--current-schedule-csv", default=None, help="optional customer/current schedule CSV: tick,src_slot,dst_slot,len_bits")
     a.add_argument("--summary-only", action="store_true", help="do not write full schedule JSON/CSV artifacts")
     a.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    a.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
+    a.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     a.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     a.add_argument("--max-demands", type=int, default=None, help="fail if normalized demand count exceeds this limit")
     a.add_argument("--max-slots", type=int, default=None, help="fail if slot count exceeds this limit")
@@ -974,7 +1001,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--solver-plugin-timeout", type=float, default=300.0, help="timeout in seconds for --solver-plugin")
     au.add_argument("--solver-plugin-max-output-bytes", type=int, default=8_000_000, help="max stdout bytes accepted from --solver-plugin")
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    au.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
+    au.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
     au.add_argument("--max-gap", type=float, default=None, help="optional CI threshold for gap_to_lower_bound")
@@ -994,7 +1021,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
     c.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
     c.add_argument("--bounds-subset-limit", type=int, default=20)
-    c.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
+    c.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     c.add_argument("--max-errors", type=int, default=None)
     c.add_argument("--max-output-ticks", type=int, default=None)
     c.add_argument("--outdir", default="artifacts/compare")
@@ -1005,7 +1032,7 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("schedule")
     v.add_argument("--report")
     v.add_argument("--bounds-subset-limit", type=int, default=20)
-    v.add_argument("--bounds-mode", choices=["auto", "fractional_exact"], default="auto")
+    v.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto")
     v.add_argument("--max-errors", type=int, default=None)
     v.set_defaults(func=cmd_validate)
 
@@ -1115,6 +1142,10 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("doctor", help="check local pilot installation and bundled demo assets")
     d.add_argument("--root", default=".", help="project/client package root to check")
     d.add_argument("--json", action="store_true", help="emit machine-readable check results")
+    d.add_argument("--demands", default=None, help="optional demands CSV for applicability diagnostics")
+    d.add_argument("--bw", type=int, default=256, help="bandwidth in bits per tick for --demands diagnostics")
+    d.add_argument("--slots", type=int, default=None, help="optional slot count override for --demands diagnostics")
+    d.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model for --demands diagnostics")
     d.set_defaults(func=cmd_doctor)
     return p
 

@@ -22,7 +22,7 @@ The report currently computes these deterministic lower bounds:
 
 ## STRICT1 bounds modes
 
-Copy-Space Guard supports two STRICT1 modes:
+Copy-Space Guard supports three STRICT1 modes:
 
 - `auto` (default):
   - exact subset-density up to `--bounds-subset-limit` (capped),
@@ -31,6 +31,9 @@ Copy-Space Guard supports two STRICT1 modes:
   - computes exact odd-subset fractional lower bound
     `ceil(max_S(2*E(S)/(abs(S)-1)))` over odd subsets,
   - currently guarded to `slots <= 24` to avoid exponential blowups.
+- `fractional_heuristic`:
+  - computes deterministic odd-subset fractional heuristic bounds for any slot count,
+  - designed for large instances where exhaustive scans are impractical.
 
 `bounds_complete` semantics:
 
@@ -39,8 +42,8 @@ Copy-Space Guard supports two STRICT1 modes:
 
 Report metadata now includes:
 
-- `bounds_mode`: selected STRICT1 mode (`auto` or `fractional_exact` when applicable),
-- `bounds_complete_reason`: explicit reason tag (`auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, ...).
+- `bounds_mode`: selected STRICT1 mode (`auto`, `fractional_heuristic`, or `fractional_exact` when applicable),
+- `bounds_complete_reason`: explicit reason tag (`auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `fractional_heuristic_partial`, ...).
 
 ## Important limitation
 

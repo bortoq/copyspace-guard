@@ -25,6 +25,10 @@ Highlights:
 - Promoted `gap_vs_greedy` as the primary practical metric in audit output and docs.
 - Added report fields `gap_reliability` and `gap_practical`.
 - Split ROI into `practical` (vs greedy) and `theoretical_max` (vs lower bound), while keeping backward-compatible flat fields.
+- Added `fractional_heuristic` STRICT1 bounds mode for scalable large-instance estimation.
+- Introduced `BoundsReason` enum and exported `BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL`.
+- Extended `doctor` with optional workload-based CI/bounds recommendations.
+- Added inline report visualizations (ticks bars + top loaded slots) without external dependencies.
 
 ## v0.2.4 — 2026-05-27
 

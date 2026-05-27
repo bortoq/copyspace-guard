@@ -252,6 +252,51 @@ def executive_cards(summary: Dict[str, Any]) -> str:
     return "<div class='kpis'>" + "".join(cards) + "</div>"
 
 
+def _visualization_block(summary: Dict[str, Any]) -> str:
+    current_label, candidate_label, cur, cand = _labels(summary)
+    lb = max(1, int(cand.lower_bound_ticks))
+    mx = max(cur.ticks_total, cand.ticks_total, lb, 1)
+    h = 160
+
+    def bar_height(v: int) -> int:
+        return max(2, int((v / mx) * h))
+
+    cur_h = bar_height(cur.ticks_total)
+    cand_h = bar_height(cand.ticks_total)
+    lb_h = bar_height(lb)
+
+    demands = summary.get("instance", {}).get("demands", [])
+    slot_load: Dict[int, int] = {}
+    for d in demands if isinstance(demands, list) else []:
+        if not isinstance(d, dict):
+            continue
+        s = int(d.get("src_slot", 0))
+        t = int(d.get("dst_slot", 0))
+        b = int(d.get("bits_total", 0))
+        slot_load[s] = slot_load.get(s, 0) + b
+        slot_load[t] = slot_load.get(t, 0) + b
+    top_slots = sorted(slot_load.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_slots_html = "".join(
+        f"<li>slot {s}: {v:,} bits</li>" for s, v in top_slots
+    ) or "<li>no demand stats available</li>"
+
+    return f"""
+<section class="viz">
+  <h2>Gap Visualization</h2>
+  <svg viewBox="0 0 420 220" role="img" aria-label="ticks comparison">
+    <rect x="40" y="{190-cur_h}" width="90" height="{cur_h}" fill="#ff8f6b"><title>{current_label}: {cur.ticks_total} ticks</title></rect>
+    <rect x="165" y="{190-cand_h}" width="90" height="{cand_h}" fill="#67e8f9"><title>{candidate_label}: {cand.ticks_total} ticks</title></rect>
+    <rect x="290" y="{190-lb_h}" width="90" height="{lb_h}" fill="#86efac"><title>lower bound: {lb} ticks</title></rect>
+    <text x="45" y="205" fill="#a8b3cf" font-size="12">{html.escape(current_label)}</text>
+    <text x="170" y="205" fill="#a8b3cf" font-size="12">{html.escape(candidate_label)}</text>
+    <text x="305" y="205" fill="#a8b3cf" font-size="12">lower bound</text>
+  </svg>
+  <h3>Top loaded slots</h3>
+  <ul>{top_slots_html}</ul>
+</section>
+"""
+
+
 def render_html(summary: Dict[str, Any]) -> str:
     md = render_markdown(summary)
     lines = md.splitlines()
@@ -348,6 +393,8 @@ p, li {{ color:var(--muted); font-size:16px; line-height:1.55; }}
 .kpi-title {{ color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }}
 .kpi-value {{ color:var(--good); font-weight:800; font-size:32px; margin-top:8px; }}
 .kpi-sub {{ color:var(--muted); font-size:13px; margin-top:4px; }}
+.viz {{ margin: 10px 0 18px; padding: 14px 18px; border:1px solid var(--line); border-radius:16px; background:#0d1530; }}
+.viz svg {{ width:100%; height:auto; display:block; margin:8px 0 6px; }}
 table {{ width:100%; border-collapse:collapse; margin:18px 0; overflow:hidden; border-radius:12px; }}
 th, td {{ padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; }}
 th {{ background:#1d2a52; color:#fff; }}
@@ -357,7 +404,7 @@ code {{ color:var(--good); background:#0c1428; padding:2px 6px; border-radius:6p
 @media(max-width:860px) {{ .kpis {{ grid-template-columns:1fr; }} h1 {{ font-size:34px; }} }}
 </style>
 </head>
-<body><main><div class="badge">Metadata-only deterministic audit</div>{executive_cards(summary)}<div class="card">
+<body><main><div class="badge">Metadata-only deterministic audit</div>{executive_cards(summary)}{_visualization_block(summary)}<div class="card">
 {''.join(body)}
 </div></main></body></html>
 """

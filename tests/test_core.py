@@ -12,6 +12,7 @@ from copyspace_guard.core import (  # noqa: E402
     BOUNDS_REASON_AUTO_EXHAUSTIVE,
     BOUNDS_REASON_AUTO_PARTIAL,
     BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+    BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
     BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     MAX_EXHAUSTIVE_SUBSET_LIMIT,
     compute_roi,
@@ -197,6 +198,18 @@ class ModelExtensionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported strict1_bounds_mode"):
             lower_bound_components(inst, strict1_bounds_mode="invalid")
 
+    def test_fractional_heuristic_mode_available(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 30,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_heuristic")
+        self.assertFalse(lbs["bounds_complete"])
+        self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL)
+
     def test_large_strict1_bounds_are_deterministic(self):
         demands = []
         for i in range(12):
@@ -280,6 +293,10 @@ class ModelExtensionTests(unittest.TestCase):
         self.assertTrue(frac_exact["bounds_complete"])
         self.assertEqual(frac_exact["bounds_complete_reason"], "exact_fractional_mode")
 
+        frac_heur = lower_bound_components(strict_large, strict1_bounds_mode="fractional_heuristic")
+        self.assertFalse(frac_heur["bounds_complete"])
+        self.assertEqual(frac_heur["bounds_complete_reason"], "fractional_heuristic_partial")
+
         rw1 = {
             "version": 0,
             "model": "READ1_WRITE1",
@@ -311,6 +328,7 @@ class ModelExtensionTests(unittest.TestCase):
             BOUNDS_REASON_AUTO_EXHAUSTIVE: True,
             BOUNDS_REASON_AUTO_PARTIAL: False,
             BOUNDS_REASON_EXACT_FRACTIONAL_MODE: True,
+            BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL: False,
             BOUNDS_REASON_READ1_WRITE1_COMPLETE: True,
         }
         cases = [
@@ -367,6 +385,7 @@ class ModelExtensionTests(unittest.TestCase):
             "BOUNDS_REASON_AUTO_EXHAUSTIVE",
             "BOUNDS_REASON_AUTO_PARTIAL",
             "BOUNDS_REASON_EXACT_FRACTIONAL_MODE",
+            "BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL",
             "BOUNDS_REASON_READ1_WRITE1_COMPLETE",
         ]
         for name in expected:
@@ -553,6 +572,7 @@ class SchemaFilesTests(unittest.TestCase):
             BOUNDS_REASON_AUTO_EXHAUSTIVE,
             BOUNDS_REASON_AUTO_PARTIAL,
             BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+            BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
             BOUNDS_REASON_READ1_WRITE1_COMPLETE,
             None,
         ]

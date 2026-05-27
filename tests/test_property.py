@@ -7,6 +7,7 @@ from copyspace_guard.core import (
     BOUNDS_REASON_AUTO_EXHAUSTIVE,
     BOUNDS_REASON_AUTO_PARTIAL,
     BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+    BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
     BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     exact_optimal_ticks,
     lower_bound_components,
@@ -106,6 +107,14 @@ else:
             lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
             self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_EXACT_FRACTIONAL_MODE)
             self.assertTrue(lbs["bounds_complete"])
+
+        @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=50, max_demands=20, max_bits=8))
+        def test_reason_complete_invariant_fractional_heuristic_mode(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_heuristic")
+            self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL)
+            self.assertFalse(lbs["bounds_complete"])
 
 
 if __name__ == "__main__":

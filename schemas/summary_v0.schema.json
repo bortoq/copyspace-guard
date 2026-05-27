@@ -97,10 +97,10 @@
         "gap_practical": {"type": ["number", "null"]},
         "lower_bound_witness": {"type": "object"},
         "bounds_complete": {"type": "boolean"},
-        "bounds_mode": {"type": ["string", "null"], "enum": ["auto", "fractional_exact", null]},
+        "bounds_mode": {"type": ["string", "null"], "enum": ["auto", "fractional_heuristic", "fractional_exact", null]},
         "bounds_complete_reason": {
           "type": ["string", "null"],
-          "enum": ["auto_exhaustive", "auto_partial", "exact_fractional_mode", "read1_write1_complete", null]
+          "enum": ["auto_exhaustive", "auto_partial", "exact_fractional_mode", "fractional_heuristic_partial", "read1_write1_complete", null]
         },
         "bounds_exhaustive_subset_limit": {"type": ["integer", "null"], "minimum": 0},
         "total_errors": {"type": "integer", "minimum": 0},

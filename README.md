@@ -171,7 +171,7 @@ Common `analyze` options:
 --current-schedule-json your_schedule.json
 --summary-only
 --bounds-subset-limit 20
---bounds-mode auto  # or fractional_exact
+--bounds-mode auto  # or fractional_heuristic / fractional_exact
 --max-errors 100
 --max-demands 100000
 --max-slots 10000
@@ -197,7 +197,7 @@ Common `audit` options:
 --model STRICT1  # or READ1_WRITE1
 --schedule-json your_schedule.json
 --bounds-subset-limit 20
---bounds-mode auto  # or fractional_exact
+--bounds-mode auto  # or fractional_heuristic / fractional_exact
 --max-errors 100
 --max-output-ticks 1000000
 --max-gap 0.15
@@ -210,12 +210,13 @@ Note: `--max-gap-vs-greedy` runs deterministic `greedy` internally to compute th
 `--bounds-mode fractional_exact` enables exact odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
 Bounds mode guidance:
 - `auto` (default): scalable heuristics and relaxations for large slot counts.
+- `fractional_heuristic`: explicit scalable odd-subset fractional heuristic mode for large slot counts.
 - `fractional_exact`: exact odd-subset fractional lower bound for STRICT1 with guard `slots <= 24`.
 - Use `fractional_exact` for higher-confidence small/medium runs; use `auto` for large production runs.
 
 `report.json` also includes:
 - `bounds_mode`: the mode used for bound computation.
-- `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `read1_write1_complete`.
+- `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `fractional_heuristic_partial`, `read1_write1_complete`.
 
 Reason guidance:
 - `auto_exhaustive`: exhaustive STRICT1 subset scan was completed; `gap_to_lower_bound` is reliable for gating.
