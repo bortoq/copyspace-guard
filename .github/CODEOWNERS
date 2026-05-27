@@ -1,0 +1,12 @@
+# Core runtime and contracts
+/src/copyspace_guard/ @bortoq
+/schemas/ @bortoq
+
+# CI/release/security sensitive paths
+/.github/workflows/ @bortoq
+/pyproject.toml @bortoq
+/SECURITY.md @bortoq
+
+# Documentation
+/README.md @bortoq
+/doc/ @bortoq

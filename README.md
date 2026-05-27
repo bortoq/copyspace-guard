@@ -332,6 +332,12 @@ Known operational caveats:
 - `vcopyspace` → future enterprise layer: receipt-based metering, ledger, trace/replay, cost model.
 - `DDAS` → long-term deterministic state-transition foundation.
 
+## Project governance
+
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Governance model: [GOVERNANCE.md](GOVERNANCE.md)
+- Code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
 ## ROI mode
 
 Turn saved ticks into business impact:
