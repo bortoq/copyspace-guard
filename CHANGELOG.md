@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.4 — 2026-05-27
+
+Audit-first release.
+
+Highlights:
+
+- Repositioned docs and client guidance around external schedule auditing.
+- Added external schedule import commands: `import-msccl`, `import-taccl`, and mapped `import-csv`.
+- Added first-class `copyspace-guard audit` mode for audit-only runs.
+- Added explicit external-audit interpretation metadata (`audit_note`, `gap_vs_greedy`).
+- Improved large `STRICT1` lower bounds with fractional and LP-core odd-subset relaxations (no external dependencies).
+
 ## v0.2.3 — 2026-05-21
 
 Security and release hardening.
