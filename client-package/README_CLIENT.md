@@ -20,6 +20,26 @@ tick,src_slot,dst_slot,len_bits
 0,0,1,256
 ```
 
+This is the preferred flow for teams with an existing solver:
+
+```bash
+copyspace-guard analyze \
+  --csv your_demands.csv \
+  --bw 256 \
+  --current-schedule-csv your_schedule.csv \
+  --outdir artifacts/audit
+```
+
+If your external solver exports JSON in internal schedule schema, use:
+
+```bash
+copyspace-guard analyze \
+  --csv your_demands.csv \
+  --bw 256 \
+  --current-schedule-json your_schedule.json \
+  --outdir artifacts/audit
+```
+
 ## 3. Optional: provide ROI assumptions
 
 Edit `roi.yml` with your infrastructure assumptions.

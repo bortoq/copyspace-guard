@@ -35,7 +35,17 @@ python -m pip install copyspace-guard
 copyspace-guard --version
 ```
 
-Run the bundled example from a repository checkout:
+If you already have a schedule from your solver:
+
+```bash
+copyspace-guard analyze \
+  --csv demands.csv \
+  --bw 256 \
+  --current-schedule-csv your_schedule.csv \
+  --outdir artifacts/audit
+```
+
+No schedule yet? Run the bundled demo from a repository checkout:
 
 ```bash
 copyspace-guard analyze \
@@ -188,6 +198,16 @@ copyspace-guard analyze \
   --csv examples/ring15.csv \
   --bw 256 \
   --current-schedule-csv customer_schedule.csv \
+  --outdir artifacts/customer-run
+```
+
+You can also pass schedule JSON from an external solver:
+
+```bash
+copyspace-guard analyze \
+  --csv examples/ring15.csv \
+  --bw 256 \
+  --current-schedule-json customer_schedule.json \
   --outdir artifacts/customer-run
 ```
 
