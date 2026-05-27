@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
-import xml.etree.ElementTree as ET
+from xml.parsers import expat
 from pathlib import Path
 from typing import Any
 
@@ -103,18 +103,19 @@ def import_taccl_json(path: str | Path, *, model: str = MODEL) -> Schedule:
 
 
 def import_msccl_xml(path: str | Path, *, model: str = MODEL) -> Schedule:
-    tree = ET.parse(path)
-    root = tree.getroot()
     rows: list[tuple[int, int, int, int]] = []
-    for elem in root.iter():
-        attrs = elem.attrib
-        if not attrs:
-            continue
+    parser = expat.ParserCreate()
+
+    def on_start(_name: str, attrs: dict[str, str]) -> None:
         tick = attrs.get("tick") or attrs.get("step") or attrs.get("time")
         src = attrs.get("src") or attrs.get("from") or attrs.get("sender")
         dst = attrs.get("dst") or attrs.get("to") or attrs.get("receiver")
         size = attrs.get("len_bits") or attrs.get("size_bits") or attrs.get("bits") or attrs.get("size") or attrs.get("cnt")
         if tick is None or src is None or dst is None or size is None:
-            continue
+            return
         rows.append((_as_int(tick), _as_int(src), _as_int(dst), _as_int(size)))
+
+    parser.StartElementHandler = on_start
+    with open(path, "rb") as f:
+        parser.ParseFile(f)
     return _schedule_from_rows(rows, model=model)

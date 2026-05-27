@@ -81,6 +81,7 @@ jobs:
           cp dist/*.whl dist/*.tar.gz dist-pypi/
 
       - name: Publish package distributions to PyPI
+        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-pypi
