@@ -170,6 +170,7 @@ Common `audit` options:
 --bounds-subset-limit 20
 --max-errors 100
 --max-output-ticks 1000000
+--max-gap 0.15
 --max-gap-vs-greedy 0.20
 ```
 
@@ -200,6 +201,12 @@ copyspace-guard compare \
   --schedule-b taccl.json \
   --outdir artifacts/compare
 ```
+
+Interpretation:
+- `schedule_a` is treated as current.
+- `schedule_b` is treated as candidate.
+- `saved_ticks > 0` means schedule B is faster.
+- `saved_ticks < 0` means schedule B is slower.
 
 ### Validate a schedule
 

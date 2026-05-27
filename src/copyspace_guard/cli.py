@@ -166,6 +166,11 @@ def cmd_audit(args: argparse.Namespace) -> int:
         rep = validate_schedule(inst, schedule, max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
     if args.max_output_ticks is not None and rep.ticks_total > args.max_output_ticks:
         raise ValueError(f"customer_current ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
+    if args.max_gap is not None:
+        if not rep.bounds_complete:
+            raise ValueError("bounds_complete=false: gap is a lower estimate only; use --max-gap-vs-greedy or relax threshold")
+        if rep.gap_to_lower_bound > args.max_gap:
+            raise ValueError(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} exceeds --max-gap {args.max_gap:.6f}")
     gap_vs_greedy = None
     if args.max_gap_vs_greedy is not None:
         rep_greedy = validate_ticks_iter(inst, iter_greedy(inst), max_errors=args.max_errors, bounds_subset_limit=args.bounds_subset_limit)
@@ -814,6 +819,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
+    au.add_argument("--max-gap", type=float, default=None, help="optional CI threshold for gap_to_lower_bound")
     au.add_argument("--max-gap-vs-greedy", type=float, default=None, help="optional CI threshold for (current_ticks-greedy_ticks)/current_ticks")
     au.add_argument("--outdir", default="artifacts/audit")
     au.set_defaults(func=cmd_audit)

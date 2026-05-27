@@ -200,6 +200,21 @@ class CliTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 2)
             self.assertIn("max_gap_vs_greedy", rc.stderr)
 
+    def test_gate_bounds_complete_warning_is_visible(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--slots", "32",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            rc = run_cli("gate", str(out / "summary.json"), "--report", "greedy", "--max-gap", "1.0", check=False)
+            self.assertEqual(rc.returncode, 2)
+            self.assertIn("bounds_complete=false", rc.stderr)
+
     def test_anonymize_schedule(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "sched.csv"
@@ -352,6 +367,30 @@ class CliErrorTests(unittest.TestCase):
             )
             self.assertEqual(rc.returncode, 1)
             self.assertIn("max-gap-vs-greedy", rc.stderr)
+
+    def test_audit_max_gap_threshold(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap", "0.5",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule", "examples/current_schedule.csv",
+                "--max-gap", "0.1",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 1)
+            self.assertIn("--max-gap", rc.stderr)
 
     def test_compare_command(self):
         with tempfile.TemporaryDirectory() as td:
