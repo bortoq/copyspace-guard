@@ -1,0 +1,6 @@
+roi:
+  tick_seconds: 0.001
+  gpu_count_blocked: 8
+  gpu_hour_cost_usd: 2.00
+  runs_per_day: 1000
+  days_per_month: 30

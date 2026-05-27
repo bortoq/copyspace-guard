@@ -494,11 +494,32 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" copyspace-guard analy
 ## Industry demos
 
 ```bash
-copyspace-guard analyze --csv examples/ai_checkpoint.csv --bw 1048576 --roi examples/roi.yml --outdir artifacts/ai-checkpoint
-copyspace-guard analyze --csv examples/db_shuffle.csv --bw 262144 --roi examples/roi.yml --outdir artifacts/db-shuffle
-copyspace-guard analyze --csv examples/storage_replication.csv --bw 1048576 --roi examples/roi.yml --outdir artifacts/storage-replication
-copyspace-guard analyze --csv examples/kv_cache_movement.csv --bw 1048576 --roi examples/roi.yml --outdir artifacts/kv-cache
+# GPT-2 DDP gradient AllReduce (8 GPU ring, 1.22 GB gradients)
+copyspace-guard analyze --csv examples/gpt2_ddp_allreduce/demands.csv \
+  --bw 25000000000 --model READ1_WRITE1 \
+  --roi examples/gpt2_ddp_allreduce/roi.yml \
+  --outdir artifacts/gpt2-ddp
+
+# LLaMA-3 70B checkpoint broadcast (8 GPU star, 17.5 GB/shard)
+copyspace-guard analyze --csv examples/llama3_70b_checkpoint/demands.csv \
+  --bw 400000000000 --model STRICT1 \
+  --roi examples/llama3_70b_checkpoint/roi.yml \
+  --outdir artifacts/llama3-checkpoint
+
+# KV-cache disaggregated inference (4 prefill + 4 decode, K_{4,4} pattern)
+copyspace-guard analyze --csv examples/kv_cache_disagg/demands.csv \
+  --bw 50000000000 --model READ1_WRITE1 \
+  --roi examples/kv_cache_disagg/roi.yml \
+  --outdir artifacts/kv-cache-disagg
+
+# Megatron-LM GPT-3 175B Tensor Parallel AllReduce (8 GPU, 16.9 GB/link)
+copyspace-guard analyze --csv examples/megatron_tp_allreduce/demands.csv \
+  --bw 600000000000 --model READ1_WRITE1 \
+  --roi examples/megatron_tp_allreduce/roi.yml \
+  --outdir artifacts/megatron-tp
 ```
+
+See `examples/*/README.md` for derivation details and source citations.
 
 ## Client package
 
