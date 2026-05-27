@@ -136,6 +136,10 @@ class ModelExtensionTests(unittest.TestCase):
         }
         lbs = lower_bound_components(inst)
         self.assertFalse(lbs["bounds_complete"])
+        self.assertIn(
+            lbs["lower_bound_witness"]["kind"],
+            {"full_graph_capacity", "subset_density_heuristic"},
+        )
 
     def test_bounds_limit_has_hard_cap(self):
         inst = {

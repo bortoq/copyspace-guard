@@ -70,6 +70,39 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
                     "internal_chunks": internal[mask],
                     "tick_capacity_chunks": cap,
                 }
+    elif slots >= 2:
+        # Deterministic large-instance fallback: evaluate dense subsets around
+        # high-degree vertices to tighten the lower bound without full 2^N scan.
+        w = [[0] * slots for _ in range(slots)]
+        for s, t, c in edges:
+            w[s][t] += c
+            w[t][s] += c
+        ranked = sorted(range(slots), key=lambda i: deg[i], reverse=True)
+        seed_count = min(12, slots)
+        for seed in ranked[:seed_count]:
+            subset = {seed}
+            neighbors = sorted((j for j in range(slots) if j != seed), key=lambda j: w[seed][j], reverse=True)
+            for node in neighbors:
+                subset.add(node)
+                k = len(subset)
+                cap = k // 2
+                if cap <= 0:
+                    continue
+                internal_chunks = 0
+                ss = sorted(subset)
+                for i, u in enumerate(ss):
+                    for v in ss[i + 1:]:
+                        internal_chunks += w[u][v]
+                lb_value = math.ceil(internal_chunks / cap) if internal_chunks else 0
+                if lb_value > density_lb:
+                    density_lb = lb_value
+                    witness = {
+                        "kind": "subset_density_heuristic",
+                        "subset": ss,
+                        "subset_size": k,
+                        "internal_chunks": internal_chunks,
+                        "tick_capacity_chunks": cap,
+                    }
 
     lower = max(degree_lb, capacity_lb, density_lb)
     return {
