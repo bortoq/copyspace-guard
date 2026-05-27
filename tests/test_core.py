@@ -152,6 +152,31 @@ class ModelExtensionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hard cap"):
             lower_bound_components(inst, exhaustive_subset_limit=MAX_EXHAUSTIVE_SUBSET_LIMIT + 1)
 
+    def test_fractional_relaxation_improves_large_strict1_bound(self):
+        demands = []
+        # 12 disjoint heavy pairs with degree 13 (dominate top-degree seeds).
+        for i in range(12):
+            demands.append({"src_slot": i, "dst_slot": 28 + i, "bits_total": 13})
+        # Hidden odd dense subset K5 with chunk weight 3 on each edge -> odd-set LB 15.
+        clique = [20, 21, 22, 23, 24]
+        for i in range(len(clique)):
+            for j in range(i + 1, len(clique)):
+                demands.append({"src_slot": clique[i], "dst_slot": clique[j], "bits_total": 3})
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 40,
+            "copy_bw_bits_per_tick": 1,
+            "demands": demands,
+        }
+        lbs = lower_bound_components(inst)
+        self.assertFalse(lbs["bounds_complete"])
+        self.assertGreaterEqual(lbs["lower_bound_ticks"], 15)
+        self.assertIn(
+            lbs["lower_bound_witness"]["kind"],
+            {"subset_density_heuristic", "fractional_relaxation_odd_subset"},
+        )
+
     def test_exact_optimal_ticks_small_oracle(self):
         inst = {
             "version": 0,

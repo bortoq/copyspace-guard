@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import heapq
 from typing import Any, Dict, List, Tuple
 
 from .io import demand_map, validate_instance
@@ -103,6 +104,50 @@ def _strict1_bounds(slots: int, edges: List[Tuple[int, int, int]], exhaustive_su
                         "internal_chunks": internal_chunks,
                         "tick_capacity_chunks": cap,
                     }
+        # Fractional relaxation (odd-subset bound) heuristic for larger instances:
+        # chi'_f >= max_{S odd} ceil( 2*E(S) / (|S|-1) ).
+        # We search odd subsets using high-degree seeds and heavy-edge seeds.
+        heavy_edges = heapq.nlargest(min(24, len(edges)), edges, key=lambda e: e[2])
+        edge_seeds = {s for s, _t, _c in heavy_edges} | {t for _s, t, _c in heavy_edges}
+        candidate_seeds = []
+        seen = set()
+        for node in ranked[: min(16, slots)] + sorted(edge_seeds):
+            if node not in seen:
+                seen.add(node)
+                candidate_seeds.append(node)
+        for seed in candidate_seeds:
+            subset = {seed}
+            remaining = set(range(slots))
+            remaining.remove(seed)
+            internal_chunks = 0
+            while remaining:
+                best_node = None
+                best_gain = -1
+                for node in remaining:
+                    gain = 0
+                    for u in subset:
+                        gain += w[node][u]
+                    if gain > best_gain:
+                        best_gain = gain
+                        best_node = node
+                if best_node is None:
+                    break
+                subset.add(best_node)
+                remaining.remove(best_node)
+                internal_chunks += max(best_gain, 0)
+                k = len(subset)
+                if k >= 3 and (k % 2 == 1):
+                    frac_lb = math.ceil((2 * internal_chunks) / (k - 1)) if internal_chunks else 0
+                    if frac_lb > density_lb:
+                        ss = sorted(subset)
+                        density_lb = frac_lb
+                        witness = {
+                            "kind": "fractional_relaxation_odd_subset",
+                            "subset": ss,
+                            "subset_size": k,
+                            "internal_chunks": internal_chunks,
+                            "formula": "ceil(2*E(S)/(abs(S)-1))",
+                        }
 
     lower = max(degree_lb, capacity_lb, density_lb)
     return {
