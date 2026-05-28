@@ -640,3 +640,66 @@ class CliErrorTests(unittest.TestCase):
             rc = run_cli("import-msccl", str(bad_xml), "--out", str(root / "x.json"), check=False)
             self.assertEqual(rc.returncode, 1)
             self.assertIn("ERROR:", rc.stderr)
+
+    def test_fractional_exact_alias_works(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--bounds-mode", "fractional_exact",
+                "--summary-only",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("fractional_exact is deprecated", rc.stderr)
+
+    def test_fractional_odd_subset_still_works(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--bounds-mode", "fractional_odd_subset",
+                "--summary-only",
+                "--outdir", str(out),
+                check=False,
+            )
+            self.assertEqual(rc.returncode, 0)
+
+    def test_infer_nccl_log(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "nccl.log"
+            log.write_text("rank 0 -> rank 1, bytes=134217728\nrank 1 -> rank 2, bytes=67108864\n", encoding="utf-8")
+            rc = run_cli("infer", str(log), check=False)
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("inferred:", rc.stdout)
+            self.assertIn("slots=3", rc.stdout)
+            self.assertIn("bw=", rc.stdout)
+            self.assertIn("use actual NIC bandwidth", rc.stdout)
+
+    def test_validate_common_args_rejects_negative_max_errors(self):
+        rc = run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--max-errors", "-1", "--summary-only", "--outdir", "/tmp/_x", check=False)
+        self.assertNotEqual(rc.returncode, 0)
+
+    def test_validate_common_args_rejects_negative_bounds_subset_limit(self):
+        rc = run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--bounds-subset-limit", "-1", "--summary-only", "--outdir", "/tmp/_x", check=False)
+        self.assertNotEqual(rc.returncode, 0)
+
+    def test_analyze_output_contains_savings_kind(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze",
+                "--csv", "examples/ring15.csv",
+                "--bw", "256",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertIn("savings_kind", summary["roi"])
+            self.assertEqual(summary["roi"]["savings_kind"], "baseline_comparison")

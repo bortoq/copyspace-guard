@@ -65,6 +65,7 @@ def _load_roi_config_and_compute(
     args: argparse.Namespace,
     rep_current: Report,
     rep_greedy: Report,
+    kind: str = "customer_vs_greedy",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     roi_config: dict[str, Any] = {}
     if args.roi:
@@ -72,11 +73,10 @@ def _load_roi_config_and_compute(
         roi_config = loaded_roi.get("roi", loaded_roi)
     cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
     comp = compare_reports(rep_current, rep_greedy, cost_per_tick)
-    roi_kind = getattr(args, "roi_kind", "customer_vs_greedy")
     roi_summary = compute_roi(
         comp, roi_config,
         theoretical_saved_ticks=max(rep_current.gap_ticks, 0),
-        kind=roi_kind,
+        kind=kind,
     )
     return comp, roi_summary
 
@@ -86,8 +86,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = instance_from_csv(args.csv, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
-    if args.current_schedule_json and args.current_schedule_csv:
-        raise SystemExit("use only one of --current-schedule-json or --current-schedule-csv")
+    if args.bounds_mode == "fractional_exact":
+        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
+        args.bounds_mode = "fractional_odd_subset"
     if args.max_slots is not None and int(inst["slots"]) > args.max_slots:
         raise ValueError(f"slot count {inst['slots']} exceeds --max-slots {args.max_slots}")
     if args.max_demands is not None and len(inst.get("demands", [])) > args.max_demands:
@@ -160,8 +161,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         for label, rep in [(current_label, rep_current), ("greedy", rep_greedy)]:
             if rep.ticks_total > args.max_output_ticks:
                 raise ValueError(f"{label} ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
-    args.roi_kind = "baseline_vs_greedy" if current_label == "baseline" else "customer_vs_greedy"
-    comp, roi_summary = _load_roi_config_and_compute(args, rep_current, rep_greedy)
+    roi_kind = "baseline_vs_greedy" if current_label == "baseline" else "customer_vs_greedy"
+    comp, roi_summary = _load_roi_config_and_compute(args, rep_current, rep_greedy, kind=roi_kind)
 
     rep_current_dict = rep_current.to_dict()
     rep_greedy_dict = rep_greedy.to_dict()
@@ -233,6 +234,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
+    if args.bounds_mode == "fractional_exact":
+        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
+        args.bounds_mode = "fractional_odd_subset"
     if args.schedule_json and args.schedule_csv:
         raise SystemExit("use only one of --schedule-json or --schedule-csv")
     if args.solver_plugin and (args.schedule_json or args.schedule_csv):
@@ -379,6 +383,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
+    if args.bounds_mode == "fractional_exact":
+        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
+        args.bounds_mode = "fractional_odd_subset"
     sched_a = _load_schedule_auto(args.schedule_a, model=str(inst.get("model", "STRICT1")))
     sched_b = _load_schedule_auto(args.schedule_b, model=str(inst.get("model", "STRICT1")))
     rep_a = validate_schedule(
@@ -401,7 +408,6 @@ def cmd_compare(args: argparse.Namespace) -> int:
         if rep_b.ticks_total > args.max_output_ticks:
             raise ValueError(f"schedule_b ticks_total {rep_b.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
 
-    args.roi_kind = "customer_vs_greedy"
     comp, roi_summary = _load_roi_config_and_compute(args, rep_a, rep_b)
 
     dump_json(outdir / "instance.json", inst)
@@ -458,6 +464,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = load_json(args.instance)
     _check_bounds_mode_slots(inst, args.bounds_mode)
+    if args.bounds_mode == "fractional_exact":
+        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
+        args.bounds_mode = "fractional_odd_subset"
     sched = load_json(args.schedule)
     rep = validate_schedule(
         inst,
@@ -568,7 +577,7 @@ def cmd_infer(args: argparse.Namespace) -> int:
         rows, meta = import_pytorch_trace_demands(path, max_rows=args.max_rows, max_file_size=args.max_file_size)
     slots = meta["slots"]
     bw = meta.get("max_bytes_per_transfer", 0) * 8
-    print(f"inferred: slots={slots} bw={bw} ({bw // 8} bytes per transfer)")
+    print(f"inferred: slots={slots} bw={bw} bits (= max transfer size; use actual NIC bandwidth if known)")
     throughput = meta.get("throughput_estimate_gbps")
     if throughput is not None:
         print(f"throughput estimate: {throughput} GB/s")
@@ -1025,7 +1034,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--current-schedule-csv", default=None, help="optional customer/current schedule CSV: tick,src_slot,dst_slot,len_bits")
     a.add_argument("--summary-only", action="store_true", help="do not write full schedule JSON/CSV artifacts")
     a.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    a.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto", help="STRICT1 lower-bound mode")
+    a.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     a.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     a.add_argument("--max-demands", type=int, default=None, help="fail if normalized demand count exceeds this limit")
     a.add_argument("--max-slots", type=int, default=None, help="fail if slot count exceeds this limit")
@@ -1046,7 +1055,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--solver-plugin-timeout", type=float, default=300.0, help="timeout in seconds for --solver-plugin")
     au.add_argument("--solver-plugin-max-output-bytes", type=int, default=8_000_000, help="max stdout bytes accepted from --solver-plugin")
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    au.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto", help="STRICT1 lower-bound mode")
+    au.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
     au.add_argument("--max-gap", type=float, default=None, help="optional CI threshold for gap_to_lower_bound")
@@ -1066,7 +1075,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
     c.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
     c.add_argument("--bounds-subset-limit", type=int, default=20)
-    c.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto", help="STRICT1 lower-bound mode")
+    c.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
     c.add_argument("--max-errors", type=int, default=None)
     c.add_argument("--max-output-ticks", type=int, default=None)
     c.add_argument("--outdir", default="artifacts/compare")

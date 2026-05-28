@@ -27,12 +27,15 @@ class Schedule(TypedDict):
     ticks: List[List[Chunk]]
 
 
-class Instance(TypedDict, total=False):
+class _InstanceRequired(TypedDict):
     version: int
     model: str
     slots: int
     copy_bw_bits_per_tick: int
     demands: List[Demand]
+
+
+class Instance(_InstanceRequired, total=False):
     id: str | None
     notes: str | None
     max_demands: int | None

@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.2.6 — 2026-05-29
+
+Breaking change: the `fractional_exact` bounds mode is renamed to
+`fractional_odd_subset`. The old name still works with a deprecation warning.
+
+Highlights:
+
+- **H1**: Added `copyspace-guard infer` command that auto-detects bandwidth and
+  slot count from NCCL debug logs and PyTorch profiler traces.
+- **H2**: Added `savings_kind` field to ROI output (`baseline_comparison` vs
+  `customer_vs_greedy`).
+- **H3**: Renamed `fractional_exact` → `fractional_odd_subset` (backwards compat
+  alias preserved). Merged odd-subset fractional bound into the auto exhaustive
+  pass.
+- **M1**: Extracted `_load_roi_config_and_compute()` and `_validate_common_args()`
+  CLI helpers to reduce duplication.
+- **M3**: `Instance` is now a TypedDict with separate required and optional
+  fields.
+- **M4/M2**: Schema enum tests use `assertCountEqual` (order-independent) and
+  auto-check against `BoundsReason` enum values.
+- **L2**: Added `gap_reliability` to analyze/compare output lines.
+- **L3**: Updated `doc/BOUNDS.md` for `fractional_odd_subset` mode.
+- Added backwards compat `fractional_exact` alias with deprecation warning.
+- Instance TypedDict: required fields (`version`, `model`, `slots`,
+  `copy_bw_bits_per_tick`, `demands`) and optional fields (`id`, `notes`,
+  `max_demands`, `max_slots`) are now separated via TypedDict inheritance.
+
 ## v0.2.5 — 2026-05-27
 
 Post-0.2.4 feature and quality updates.

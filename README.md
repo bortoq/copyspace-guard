@@ -234,6 +234,19 @@ copyspace-guard import-nccl-log nccl_debug.log --out demands.csv
 copyspace-guard import-pytorch-trace trace.json --out demands.csv
 ```
 
+### Infer bandwidth and slot count from logs
+
+```bash
+copyspace-guard infer nccl_debug.log
+copyspace-guard infer trace.json
+copyspace-guard infer nccl_debug.log --out demands.csv
+```
+
+The `infer` command reads a NCCL debug log or PyTorch profiler trace, extracts
+the maximum rank ID (→ `slots`) and the largest transfer size (→ `bw`), and
+prints a recommended `copyspace-guard audit` invocation. Pass `--out` to also
+write the demands CSV.
+
 Bundled examples:
 
 ```bash
