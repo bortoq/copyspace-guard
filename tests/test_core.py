@@ -783,3 +783,60 @@ class ReportRenderingTests(unittest.TestCase):
             write_reports(td, summary)
             self.assertTrue((Path(td) / "report.md").exists())
             self.assertTrue((Path(td) / "report.html").exists())
+
+    def test_gate_report_handles_none_thresholds(self):
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "utilization": 0.8, "gap_to_lower_bound": 0.5, "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "gap_reliability": "estimate", "errors": []})
+        self.assertEqual(gate_report(rep), (True, []))
+
+    def test_gate_report_accepts_passing_max_gap(self):
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.1, "utilization": 0.9, "gap_reliability": "exact", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
+        ok, reasons = gate_report(rep, max_gap=0.2)
+        self.assertTrue(ok)
+        self.assertEqual(reasons, [])
+
+    def test_gate_report_rejects_exceeding_max_gap(self):
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.5, "utilization": 0.9, "gap_reliability": "exact", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
+        ok, reasons = gate_report(rep, max_gap=0.2)
+        self.assertFalse(ok)
+        self.assertGreater(len(reasons), 0)
+
+    def test_gate_report_max_gap_vs_greedy(self):
+        from copyspace_guard.validate import gate_report as validate_report
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.3, "utilization": 0.9, "gap_reliability": "estimate", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
+        ok, reasons = validate_report(rep, max_gap=0.2)
+        self.assertFalse(ok)
+        self.assertGreater(len(reasons), 0)
+
+    def test_report_svg_inline_visualization_is_valid_svg(self):
+        test_summary = {
+            "instance": {"id": "test", "model": "STRICT1", "slots": 4, "copy_bw_bits_per_tick": 256},
+            "current_label": "baseline",
+            "candidate_label": "greedy",
+            "reports": {
+                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 5, "bits_total": 1024, "bits_per_tick": 204.8, "utilization": 0.8, "lower_bound_ticks": 4, "gap_to_lower_bound": 0.25, "gap_reliability": "exact", "max_degree_chunks": 3, "errors": []},
+                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 5, "bits_total": 1024, "bits_per_tick": 204.8, "utilization": 0.8, "lower_bound_ticks": 4, "gap_to_lower_bound": 0.25, "gap_reliability": "exact", "max_degree_chunks": 3, "errors": []},
+            },
+            "comparison": {"comparable": True, "saved_ticks": 0, "saved_ticks_pct": 0.0, "gap_reduction_ticks": 0, "utilization_delta": 0.0},
+            "roi": {},
+            "artifacts": {},
+        }
+        html = render_html(test_summary)
+        self.assertIn("<svg", html)
+        self.assertIn("</svg>", html)
+
+    def test_html_report_no_xss_injection(self):
+        test_summary = {
+            "instance": {"id": "<script>alert(1)</script>", "model": "STRICT1", "slots": 4, "copy_bw_bits_per_tick": 256, "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 100}]},
+            "current_label": "baseline",
+            "candidate_label": "greedy",
+            "reports": {
+                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
+                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
+            },
+            "comparison": {"comparable": True, "saved_ticks": 0, "saved_ticks_pct": 0.0, "gap_reduction_ticks": 0, "utilization_delta": 0.0},
+            "roi": {"savings_kind": "baseline_comparison"},
+            "artifacts": {},
+        }
+        html = render_html(test_summary)
+        self.assertNotIn("<script>", html)
+        self.assertIn("&amp;lt;script&amp;gt;", html)

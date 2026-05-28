@@ -703,3 +703,194 @@ class CliErrorTests(unittest.TestCase):
             summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
             self.assertIn("savings_kind", summary["roi"])
             self.assertEqual(summary["roi"]["savings_kind"], "baseline_comparison")
+
+
+class SecurityCliTests(unittest.TestCase):
+    def test_outdir_path_traversal_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            bad = Path(td) / "sub" / ".." / ".." / "etc"
+            rc = run_cli(
+                "analyze", "--csv", "examples/ring15.csv", "--bw", "256",
+                "--summary-only", "--outdir", str(bad), check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
+
+    def test_outdir_path_traversal_with_symlink_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            link = Path(td) / "outlink"
+            link.symlink_to(Path(td) / ".." / "etc", target_is_directory=True)
+            rc = run_cli(
+                "analyze", "--csv", "examples/ring15.csv", "--bw", "256",
+                "--summary-only", "--outdir", str(link), check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
+
+    def test_formula_injection_in_csv_escaped(self):
+        from copyspace_guard.io import csv_safe_cell
+        self.assertEqual(csv_safe_cell("=cmd"), "'=cmd")
+        self.assertEqual(csv_safe_cell("+cmd"), "'+cmd")
+        self.assertEqual(csv_safe_cell("-cmd"), "'-cmd")
+        self.assertEqual(csv_safe_cell("@cmd"), "'@cmd")
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "nccl.log"
+            log.write_text('rank 0 -> rank 1, bytes=100\n', encoding="utf-8")
+            out = Path(td) / "demands.csv"
+            rc = run_cli(
+                "import-nccl-log", str(log),
+                "--out", str(out), check=False,
+            )
+            self.assertEqual(rc.returncode, 0)
+            content = out.read_text(encoding="utf-8")
+            self.assertIn("src_slot,dst_slot,bits_total", content)
+
+    def test_xxe_in_msccl_xml_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            bad_xml = Path(td) / "evil.xml"
+            bad_xml.write_text(
+                '<?xml version="1.0" encoding="utf-8"?>\n'
+                '<!DOCTYPE foo [\n'
+                '  <!ENTITY xxe SYSTEM "file:///etc/passwd">\n'
+                ']>\n'
+                '<algo><op tick="1" src="0" dst="1" len_bits="&xxe;"/></algo>',
+                encoding="utf-8",
+            )
+            rc = run_cli("import-msccl", str(bad_xml), "--out", str(Path(td) / "x.json"), check=False)
+            self.assertNotEqual(rc.returncode, 0)
+
+    def test_max_rows_limit_enforced(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "nccl.log"
+            log.write_text('rank 0 -> rank 1, bytes=100\nrank 1 -> rank 2, bytes=200\n', encoding="utf-8")
+            rc = run_cli(
+                "import-nccl-log", str(log),
+                "--max-rows", "1", "--out", str(Path(td) / "o.csv"), check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
+            self.assertIn("--max-rows", rc.stderr)
+
+    def test_max_file_size_limit_enforced(self):
+        with tempfile.TemporaryDirectory() as td:
+            big = Path(td) / "big.log"
+            big.write_text("rank 0 -> rank 1, bytes=8\n" * 10000, encoding="utf-8")
+            rc = run_cli(
+                "import-nccl-log", str(big),
+                "--max-file-size", "100", "--out", str(Path(td) / "o.csv"), check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
+            self.assertIn("--max-file-size", rc.stderr)
+
+
+class IntegrationCliTests(unittest.TestCase):
+    def test_analyze_then_gate_full_workflow(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze", "--csv", "examples/ring15.csv", "--bw", "256",
+                "--summary-only", "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            summary = out / "summary.json"
+            rc2 = run_cli("gate", str(summary), check=False)
+            self.assertEqual(rc2.returncode, 0)
+
+    def test_analyze_then_gate_with_max_gap_rejects(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            rc = run_cli(
+                "analyze", "--csv", "examples/ring15.csv", "--bw", "256",
+                "--summary-only", "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            summary = out / "summary.json"
+            rc2 = run_cli("gate", str(summary), "--report", "baseline", "--max-gap", "0.1", check=False)
+            self.assertNotEqual(rc2.returncode, 0)
+
+    def test_solver_plugin_works(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = Path(td) / "plugin.py"
+            plugin.write_text(
+                "import json, sys\n"
+                "inst = json.load(sys.stdin)\n"
+                "slots = inst['slots']\n"
+                "sched = {'version': 0, 'model': 'STRICT1', 'ticks': [[{'src_slot': 0, 'dst_slot': 1, 'len_bits': 100}]]}\n"
+                "json.dump(sched, sys.stdout)\n",
+                encoding="utf-8",
+            )
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit", "--demands", "examples/ring15.csv", "--bw", "256",
+                "--slots", "15", "--solver-plugin", str(plugin),
+                "--outdir", str(out), check=False,
+            )
+            self.assertIn("customer_current", rc.stdout)
+
+    def test_infer_nccl_log_emits_runnable_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "nccl.log"
+            log.write_text("rank 0 -> rank 1, bytes=1048576\nrank 1 -> rank 2, bytes=1048576\n", encoding="utf-8")
+            rc = run_cli("infer", str(log), check=False)
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("inferred:", rc.stdout)
+            self.assertIn("--bw", rc.stdout)
+            self.assertIn("--slots", rc.stdout)
+
+    def test_infer_pytorch_trace_emits_runnable_command(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as td:
+            trace = Path(td) / "trace.json"
+            trace.write_text(
+                _json.dumps({"traceEvents": [{"name": "ncclAllReduce", "args": {"bytes": 16, "ranks": [0, 1, 2]}}]}),
+                encoding="utf-8",
+            )
+            rc = run_cli("infer", str(trace), check=False)
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("inferred:", rc.stdout)
+            self.assertIn("slots=3", rc.stdout)
+
+    def test_infer_with_out_writes_csv(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as td:
+            trace = Path(td) / "trace.json"
+            trace.write_text(
+                _json.dumps({"traceEvents": [{"name": "ncclAllReduce", "args": {"bytes": 8, "ranks": [0, 1]}}]}),
+                encoding="utf-8",
+            )
+            csv_out = Path(td) / "demands.csv"
+            rc = run_cli("infer", str(trace), "--out", str(csv_out), check=False)
+            self.assertEqual(rc.returncode, 0)
+            self.assertTrue(csv_out.exists())
+            self.assertIn("src_slot", csv_out.read_text(encoding="utf-8"))
+
+    def test_anonymize_demands_roundtrip(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as td:
+            csv_in = Path(td) / "in.csv"
+            csv_in.write_text("src_slot,dst_slot,bits_total\n0,1,100\n2,3,200\n", encoding="utf-8")
+            csv_out = Path(td) / "out.csv"
+            map_out = Path(td) / "map.json"
+            rc = run_cli(
+                "anonymize", "--kind", "demands",
+                "--csv", str(csv_in), "--out", str(csv_out),
+                "--mapping", str(map_out), check=False,
+            )
+            self.assertEqual(rc.returncode, 0)
+            self.assertTrue(csv_out.exists())
+            mapping = _json.loads(map_out.read_text(encoding="utf-8"))
+            self.assertEqual(len(mapping), 4)
+
+    def test_anonymize_schedule_roundtrip(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as td:
+            csv_in = Path(td) / "in.csv"
+            csv_in.write_text("tick,src_slot,dst_slot,len_bits\n0,0,1,8\n", encoding="utf-8")
+            csv_out = Path(td) / "out.csv"
+            map_out = Path(td) / "map.json"
+            rc = run_cli(
+                "anonymize", "--kind", "schedule",
+                "--csv", str(csv_in), "--out", str(csv_out),
+                "--mapping", str(map_out), check=False,
+            )
+            self.assertEqual(rc.returncode, 0)
+            self.assertTrue(csv_out.exists())
+            mapping = _json.loads(map_out.read_text(encoding="utf-8"))
+            self.assertEqual(len(mapping), 2)

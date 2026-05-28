@@ -11,6 +11,7 @@ from copyspace_guard.core import (
     BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     exact_optimal_ticks,
     lower_bound_components,
+    solve_baseline,
     solve_greedy,
     validate_schedule,
 )
@@ -115,6 +116,47 @@ else:
             lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_heuristic")
             self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL)
             self.assertFalse(lbs["bounds_complete"])
+
+        @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=6, max_demands=8, max_bits=4))
+        def test_gap_to_lower_bound_non_negative(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            rep = validate_schedule(inst, solve_baseline(inst))
+            self.assertGreaterEqual(rep.gap_to_lower_bound, 0.0)
+
+        @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=6, max_demands=8, max_bits=4))
+        def test_gap_practical_in_range(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            rep = validate_schedule(inst, solve_greedy(inst))
+            if rep.gap_practical is not None:
+                self.assertGreaterEqual(rep.gap_practical, 0.0)
+                self.assertLessEqual(rep.gap_practical, 1.0)
+
+        @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=5, max_demands=6, max_bits=4))
+        def test_bounds_complete_implies_reliability_exact(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            lbs = lower_bound_components(inst, strict1_bounds_mode="auto")
+            rep = validate_schedule(inst, solve_baseline(inst))
+            if lbs["bounds_complete"]:
+                self.assertEqual(rep.gap_reliability, "exact")
+
+        @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+        @given(instance_strategy(max_slots=30, max_demands=8, max_bits=4))
+        def test_fractional_odd_subset_rejects_large_slots(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            assume(int(inst["slots"]) > 24)
+            with self.assertRaises(ValueError):
+                lower_bound_components(inst, strict1_bounds_mode="fractional_odd_subset")
+
+        @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=6, max_demands=8, max_bits=4))
+        def test_greedy_ticks_at_least_lower_bound(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            lbs = lower_bound_components(inst)
+            rep = validate_schedule(inst, solve_greedy(inst))
+            self.assertGreaterEqual(rep.ticks_total, lbs["lower_bound_ticks"])
 
 
 if __name__ == "__main__":
