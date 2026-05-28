@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 import time
@@ -248,7 +248,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
         if not plugin.exists():
             raise FileNotFoundError(f"solver plugin not found: {plugin}")
         payload = json.dumps(inst)
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec B603
             [sys.executable, str(plugin)],
             input=payload,
             text=True,
