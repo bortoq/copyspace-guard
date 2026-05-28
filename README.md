@@ -493,33 +493,45 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" copyspace-guard analy
 
 ## Industry demos
 
+Real-workload examples derived from published ML papers. Each example includes
+a `naive_schedule.csv` (sequential, no parallelism) to compare against greedy,
+showing concrete `saved_ticks` and efficiency gains.
+
 ```bash
-# GPT-2 DDP gradient AllReduce (8 GPU ring, 1.22 GB gradients)
+# GPT-2 DDP AllReduce: naive sequential (8 ticks) vs parallel greedy (1 tick)
+# saved_ticks=7 — 8x speedup from parallel ring scheduling
 copyspace-guard analyze --csv examples/gpt2_ddp_allreduce/demands.csv \
   --bw 25000000000 --model READ1_WRITE1 \
+  --current-schedule-csv examples/gpt2_ddp_allreduce/naive_schedule.csv \
   --roi examples/gpt2_ddp_allreduce/roi.yml \
   --outdir artifacts/gpt2-ddp
 
-# LLaMA-3 70B checkpoint broadcast (8 GPU star, 17.5 GB/shard)
+# LLaMA-3 70B checkpoint: star broadcast audit (gap=0 proves optimality under STRICT1)
+# saved_ticks=0 — star pattern is irreducible; use READ1_WRITE1 for tree broadcast
 copyspace-guard analyze --csv examples/llama3_70b_checkpoint/demands.csv \
   --bw 400000000000 --model STRICT1 \
   --roi examples/llama3_70b_checkpoint/roi.yml \
   --outdir artifacts/llama3-checkpoint
 
-# KV-cache disaggregated inference (4 prefill + 4 decode, K_{4,4} pattern)
+# KV-cache disaggregation: naive sequential (16 ticks) vs parallel greedy (4 ticks)
+# saved_ticks=12 — 4x speedup from parallel K_{4,4} scheduling
 copyspace-guard analyze --csv examples/kv_cache_disagg/demands.csv \
   --bw 50000000000 --model READ1_WRITE1 \
+  --current-schedule-csv examples/kv_cache_disagg/naive_schedule.csv \
   --roi examples/kv_cache_disagg/roi.yml \
   --outdir artifacts/kv-cache-disagg
 
-# Megatron-LM GPT-3 175B Tensor Parallel AllReduce (8 GPU, 16.9 GB/link)
+# Megatron-LM GPT-3 TP AllReduce: naive sequential (8 ticks) vs parallel greedy (1 tick)
+# saved_ticks=7 — 8x speedup, largest transfer volume (16.9 GB/link)
 copyspace-guard analyze --csv examples/megatron_tp_allreduce/demands.csv \
   --bw 600000000000 --model READ1_WRITE1 \
+  --current-schedule-csv examples/megatron_tp_allreduce/naive_schedule.csv \
   --roi examples/megatron_tp_allreduce/roi.yml \
   --outdir artifacts/megatron-tp
 ```
 
-See `examples/*/README.md` for derivation details and source citations.
+See `examples/*/README.md` for derivation details, source citations, and
+STRICT1 vs READ1_WRITE1 model comparison commands.
 
 ## Client package
 

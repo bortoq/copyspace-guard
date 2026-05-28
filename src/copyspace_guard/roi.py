@@ -76,7 +76,6 @@ def compute_roi(
     roi = dict(roi or {})
     saved_ticks = float(comparison.get("saved_ticks", 0.0)) if comparison.get("comparable", True) else 0.0
     theo_ticks = float(theoretical_saved_ticks if theoretical_saved_ticks is not None else 0.0)
-    tick_seconds = float(roi.get("tick_seconds", 1.0))
     runs_per_day = float(roi.get("runs_per_day", 1.0))
     days_per_month = float(roi.get("days_per_month", 30.0))
     months_per_year = float(roi.get("months_per_year", 12.0))

@@ -34,6 +34,7 @@ from .core import (
     write_schedule_csv,
 )
 from .report import write_reports
+from .types import Schedule
 from .importers import (
     import_csv_with_map,
     import_msccl_xml,
@@ -346,11 +347,11 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 0 if rep.status == "PASS" else 2
 
 
-def _load_schedule_auto(path: str, *, model: str) -> dict[str, Any]:
+def _load_schedule_auto(path: str, *, model: str) -> Schedule:
     p = Path(path)
     if p.suffix.lower() == ".csv":
         return schedule_from_csv(path, model=model)
-    return cast(dict[str, Any], load_json(path))
+    return cast(Schedule, load_json(path))
 
 
 def cmd_compare(args: argparse.Namespace) -> int:
@@ -896,6 +897,9 @@ def prepare_output_dir(path: Path) -> Path:
         raise ValueError(f"--outdir must be a directory: {path}")
     if path.exists() and path.is_symlink():
         raise ValueError(f"--outdir must not be a symlink: {path}")
+    for ancestor in path.parents:
+        if ancestor.exists() and ancestor.is_symlink():
+            raise ValueError(f"--outdir must not traverse through a symlink: {path}")
     path.mkdir(parents=True, exist_ok=True)
     return path
 

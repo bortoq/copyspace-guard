@@ -190,7 +190,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
                     continue
                 try:
                     ti = int(dict_row["tick"])
-                    ch = {"src_slot": int(dict_row["src_slot"]), "dst_slot": int(dict_row["dst_slot"]), "len_bits": int(dict_row["len_bits"])}
+                    ch: Chunk = {"src_slot": int(dict_row["src_slot"]), "dst_slot": int(dict_row["dst_slot"]), "len_bits": int(dict_row["len_bits"])}
                 except Exception as e:
                     raise ValueError(f"bad schedule CSV row {i}: expected tick,src_slot,dst_slot,len_bits integers") from e
                 if ti < 0:
@@ -223,7 +223,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
                     raise ValueError(f"bad schedule CSV row {i}: expected 4 columns")
                 try:
                     ti = int(list_row[0])
-                    ch = {"src_slot": int(list_row[1]), "dst_slot": int(list_row[2]), "len_bits": int(list_row[3])}
+                    chunk: Chunk = {"src_slot": int(list_row[1]), "dst_slot": int(list_row[2]), "len_bits": int(list_row[3])}
                 except Exception as e:
                     raise ValueError(f"bad schedule CSV row {i}: expected tick,src_slot,dst_slot,len_bits integers") from e
                 if ti < 0:
@@ -243,7 +243,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
                             yield []
                     current_tick = ti
                     current_chunks = []
-                current_chunks.append(ch)
+                current_chunks.append(chunk)
                 last_tick = ti
 
         if not any_rows:

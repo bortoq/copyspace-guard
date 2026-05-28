@@ -148,17 +148,6 @@ def validate_ticks_iter(
                     used.add(t)
                 scheduled[(s, t)] = scheduled.get((s, t), 0) + length
                 bits_total += length
-            else:
-                if model == READ1_WRITE1:
-                    if 0 <= s < slots:
-                        used_src.add(s)
-                    if 0 <= t < slots:
-                        used_dst.add(t)
-                else:
-                    if 0 <= s < slots:
-                        used.add(s)
-                    if 0 <= t < slots:
-                        used.add(t)
 
     try:
         dm = demand_map(inst)

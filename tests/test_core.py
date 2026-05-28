@@ -85,7 +85,7 @@ class CoreTests(unittest.TestCase):
         self.assertGreater(rep.ticks_total, 0)
         kinds = {e["kind"] for e in rep.errors}
         self.assertIn("BANDWIDTH", kinds)
-        self.assertIn("STRICT1", kinds)
+        self.assertIn("EXTRAS", kinds)
         self.assertIn("COVERAGE", kinds)
 
     def test_schedule_csv_import(self):

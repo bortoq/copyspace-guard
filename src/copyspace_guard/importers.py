@@ -7,7 +7,7 @@ from xml.parsers import expat
 from pathlib import Path
 from typing import Any
 
-from .types import MODEL, MODELS, Schedule
+from .types import MODEL, MODELS, Chunk, Schedule
 
 
 def _check_import_limits(path: str | Path, *, max_rows: int | None, max_file_size: int | None) -> None:
@@ -39,9 +39,9 @@ def _schedule_from_rows(rows: list[tuple[int, int, int, int]], *, model: str = M
     if not rows:
         raise ValueError("no schedule rows found")
     rows.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
-    ticks: list[list[dict[str, int]]] = []
+    ticks: list[list[Chunk]] = []
     cur_tick = 0
-    cur_chunks: list[dict[str, int]] = []
+    cur_chunks: list[Chunk] = []
     for tick, src, dst, bits in rows:
         if tick < 0 or src < 0 or dst < 0 or bits <= 0:
             raise ValueError("invalid schedule row values")

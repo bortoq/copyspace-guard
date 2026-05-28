@@ -29,7 +29,7 @@ Highlights:
 - Introduced `BoundsReason` enum and exported `BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL`.
 - Extended `doctor` with optional workload-based CI/bounds recommendations.
 - Added inline report visualizations (ticks bars + top loaded slots) without external dependencies.
-- Added real-workload examples derived from published ML papers: GPT-2 DDP AllReduce, LLaMA-3 70B checkpoint, KV-cache disaggregation, Megatron-LM TP AllReduce (see `examples/*/README.md`).
+- Added real-workload examples with naive_schedule.csv files: GPT-2 DDP (8x speedup), KV-cache disagg (4x speedup), Megatron TP AllReduce (8x speedup), LLaMA-3 70B checkpoint (gap=0 audit); see `examples/*/README.md` for derivation and source citations.
 
 ## v0.2.4 — 2026-05-27
 

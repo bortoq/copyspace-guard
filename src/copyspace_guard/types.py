@@ -1,16 +1,34 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
 
 STRICT1 = "STRICT1"
 READ1_WRITE1 = "READ1_WRITE1"
 MODELS = {STRICT1, READ1_WRITE1}
 MODEL = STRICT1  # backward-compatible default model name
 
-Demand = Dict[str, int]
-Chunk = Dict[str, int]
-Schedule = Dict[str, Any]
+
+class Demand(TypedDict):
+    src_slot: int
+    dst_slot: int
+    bits_total: int
+
+
+class Chunk(TypedDict):
+    src_slot: int
+    dst_slot: int
+    len_bits: int
+
+
+class Schedule(TypedDict):
+    version: int
+    model: str
+    ticks: List[List[Chunk]]
+
+
+# Instance has optional fields (id, notes) not captured here;
+# it is used structurally as Dict[str, Any] throughout the codebase.
 Instance = Dict[str, Any]
 
 

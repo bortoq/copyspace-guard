@@ -2,77 +2,76 @@
 
 ## What this models
 
-Tensor Parallel AllReduce communication within a single DGX A100 node (8 GPUs).
-Each transformer layer requires 2 AllReduce operations (attention + FFN output).
-Accumulated over all 96 layers of GPT-3 175B for one complete training step.
+Tensor Parallel AllReduce within a single DGX A100 node (8 GPUs, NVLink).
+Accumulated communication over all 96 layers of GPT-3 175B for one training step.
+Pattern: ring 0→1→2→3→4→5→6→7→0
+
+Included files:
+- `demands.csv` — ring transfer structure with GPT-3-scale volumes
+- `naive_schedule.csv` — sequential schedule (one ring link at a time)
+- `roi.yml` — cost model (GPU-hour cost at scale)
 
 ## How numbers were derived
 
-Model: GPT-3 175B (Megatron-LM configuration)
-- hidden_size = 12,288
-- num_layers = 96
-- seq_len = 2,048 tokens
-- micro_batch_size = 1
-- dtype = BF16 (2 bytes)
-- tensor_parallel_size (TP) = 8
+GPT-3 175B (Megatron-LM, arxiv:2104.04473):
+- hidden_size=12288, num_layers=96, seq_len=2048, BF16, TP=8
+- Per AllReduce: 12288 × 2048 × 2 bytes = 50.3 MB; 2 per layer
+- Ring per link per layer: 2 × 2 × (7/8) × 50.3 MB = 176 MB
+- Total over 96 layers: 176 MB × 96 = 16.9 GB
+- bits_total = 135,291,469,824 bits
 
-Per AllReduce payload (one attention or FFN block):
-  hidden_size × seq_len × micro_batch × bytes
-  = 12,288 × 2,048 × 1 × 2 = 50,331,648 bytes ≈ 50.3 MB
+## Source
 
-Per layer: 2 AllReduce operations (column-parallel + row-parallel linear)
+- Megatron-LM (arxiv:2104.04473): https://arxiv.org/abs/2104.04473
+- NVIDIA Megatron blog: https://developer.nvidia.com/blog/scaling-language-model-training-to-a-trillion-parameters-using-megatron/
 
-Ring AllReduce per link per layer:
-  2 × (N-1)/N × size × 2 (reduce-scatter + all-gather)
-  = 2 × 7/8 × 50,331,648 × 2 = 176,160,768 bytes ≈ 176 MB
-
-Total over 96 layers per training step:
-  176,160,768 × 96 = 16,911,433,728 bytes ≈ 16.9 GB per ring link
-
-bits_total = 16,911,433,728 × 8 = 135,291,469,824 bits
-
-## Sources
-
-- Megatron-LM paper (NVIDIA, SC 2021): arxiv:2104.04473
-  "Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM"
-  Table 1: GPT-3 175B config: 96 layers, 96 attention heads, hidden=12288
-  https://arxiv.org/abs/2104.04473
-- NVIDIA Megatron-LM scaling blog:
-  https://developer.nvidia.com/blog/scaling-language-model-training-to-a-trillion-parameters-using-megatron/
-- Megatron-Bridge performance guide (TP communication details):
-  https://docs.nvidia.com/nemo/megatron-bridge/latest/performance-guide.html
-
-## Recommended copyspace-guard command
+## Scheduler comparison — run this to see saved_ticks
 
 ```bash
+# Naive sequential: one ring link at a time, 8 ticks total
 copyspace-guard analyze \
   --csv examples/megatron_tp_allreduce/demands.csv \
-  --bw 600000000000 \
-  --model READ1_WRITE1 \
+  --bw 600000000000 --model READ1_WRITE1 \
+  --current-schedule-csv examples/megatron_tp_allreduce/naive_schedule.csv \
   --roi examples/megatron_tp_allreduce/roi.yml \
   --id megatron-gpt3-175b-tp8 \
   --outdir artifacts/megatron-tp
 ```
 
-## Parameters explained
+Expected output:
+```
+customer_current: status=PASS ticks=8 lb=1 gap=7.000000 util=2.8%
+greedy:           status=PASS ticks=1 lb=1 gap=0.000000 util=22.6%
+saved_ticks=7
+```
 
-- `--bw 600000000000`: 600 GB/s — NVLink 4.0 bidirectional aggregate bandwidth
-  (NVLink 4.0: 900 GB/s total, ~600 GB/s effective per direction at scale)
-- `--model READ1_WRITE1`: NVLink is full-duplex; ring AllReduce uses both directions
-- 8 slots → bounds_complete=True, gap exact
-- Ring pattern identical to examples/ring15.csv but with GPT-3-scale volumes
+**Interpretation:** a naive sequential ring (one link at a time) takes 8 ticks.
+All 8 ring links can happen simultaneously under READ1_WRITE1 (NVLink full-duplex),
+completing the entire AllReduce in 1 tick — **8x speedup**.
 
-## Expected output
+At scale (GPT-3 175B trains for weeks), this difference compounds:
+even a 2x improvement in AllReduce scheduling translates to days of GPU time saved.
 
-- Ring pattern: degree_lb = 2 × 96 × 2 chunks per GPU (send+receive per layer)
-- lower_bound_ticks determined by capacity: ceil(8 links × 16.9 GB / (4 × bw))
-- Greedy should achieve near-optimal for uniform ring
-- Insight: compare STRICT1 vs READ1_WRITE1 to quantify NVLink full-duplex value
+## Model comparison — STRICT1 vs READ1_WRITE1
+
+```bash
+# STRICT1 (half-duplex):
+copyspace-guard analyze ... --model STRICT1  → greedy: 2 ticks
+# READ1_WRITE1 (NVLink full-duplex):
+copyspace-guard analyze ... --model READ1_WRITE1 → greedy: 1 tick
+```
+
+NVLink 4.0 bidirectional bandwidth enables simultaneous send+receive,
+halving the AllReduce time compared to a half-duplex model.
+
+## About utilization
+
+`utilization=22.6%` (greedy) is the highest among all examples —
+GPT-3's large tensors (16.9 GB per ring link) come closer to saturating NVLink 4.0 (600 GB/s).
+The naive schedule (util=2.8%) wastes 7 of 8 ring links each tick.
 
 ## Caveats
 
-Real Megatron-LM overlaps TP communication with computation using async AllReduce.
-This model captures TOTAL communication volume per step, not the serialized latency.
-With sequence parallelism enabled, TP communication pattern changes to
-AllGather + ReduceScatter instead of AllReduce.
-The numbers assume no gradient bucketing or communication compression.
+Real Megatron-LM overlaps AllReduce with computation using async communication.
+This model captures total TP communication volume per step, not serialized latency.
+With sequence parallelism, pattern changes to AllGather + ReduceScatter.
