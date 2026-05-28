@@ -416,7 +416,7 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 2)
             self.assertTrue((out / "report_customer_current.json").exists())
 
-    def test_audit_bounds_mode_fractional_exact(self):
+    def test_audit_bounds_mode_fractional_odd_subset(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "audit"
             rc = run_cli(
@@ -424,7 +424,7 @@ class CliErrorTests(unittest.TestCase):
                 "--demands", "examples/ring15.csv",
                 "--bw", "256",
                 "--schedule", "examples/current_schedule.csv",
-                "--bounds-mode", "fractional_exact",
+                "--bounds-mode", "fractional_odd_subset",
                 "--outdir", str(out),
             )
             self.assertEqual(rc.returncode, 0)
@@ -506,7 +506,7 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 2)
             self.assertIn("bounds_complete=false", rc.stderr)
 
-    def test_audit_fractional_exact_rejects_slots_above_limit(self):
+    def test_audit_fractional_odd_subset_rejects_slots_above_limit(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "audit"
             rc = run_cli(
@@ -515,12 +515,12 @@ class CliErrorTests(unittest.TestCase):
                 "--bw", "256",
                 "--slots", "30",
                 "--schedule", "examples/current_schedule.csv",
-                "--bounds-mode", "fractional_exact",
+                "--bounds-mode", "fractional_odd_subset",
                 "--outdir", str(out),
                 check=False,
             )
             self.assertEqual(rc.returncode, 1)
-            self.assertIn("fractional_exact is limited", rc.stderr)
+            self.assertIn("fractional_odd_subset is limited", rc.stderr)
 
     def test_audit_accumulates_multiple_gate_reasons(self):
         with tempfile.TemporaryDirectory() as td:
@@ -558,14 +558,14 @@ class CliErrorTests(unittest.TestCase):
             self.assertTrue((out / "report_schedule_a.json").exists())
             self.assertTrue((out / "report_schedule_b.json").exists())
 
-    def test_analyze_bounds_mode_fractional_exact(self):
+    def test_analyze_bounds_mode_fractional_odd_subset(self):
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out"
             rc = run_cli(
                 "analyze",
                 "--csv", "examples/ring15.csv",
                 "--bw", "256",
-                "--bounds-mode", "fractional_exact",
+                "--bounds-mode", "fractional_odd_subset",
                 "--summary-only",
                 "--outdir", str(out),
             )
@@ -573,7 +573,7 @@ class CliErrorTests(unittest.TestCase):
             data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
             self.assertIn(
                 data["reports"]["greedy"]["lower_bound_witness"]["kind"],
-                {"full_graph_capacity", "fractional_exact_odd_subset"},
+                {"full_graph_capacity", "fractional_odd_subset"},
             )
 
     def test_analyze_bounds_mode_fractional_heuristic(self):

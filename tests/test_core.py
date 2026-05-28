@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from copyspace_guard.core import (  # noqa: E402
     BOUNDS_REASON_AUTO_EXHAUSTIVE,
     BOUNDS_REASON_AUTO_PARTIAL,
-    BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+    BOUNDS_REASON_FRACTIONAL_ODD_SUBSET,
     BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
     BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     MAX_EXHAUSTIVE_SUBSET_LIMIT,
@@ -112,7 +112,7 @@ if __name__ == "__main__":
     unittest.main()
 
 class ModelExtensionTests(unittest.TestCase):
-    def test_fractional_exact_mode_small_instance(self):
+    def test_fractional_odd_subset_mode_small_instance(self):
         inst = {
             "version": 0,
             "model": "STRICT1",
@@ -131,13 +131,13 @@ class ModelExtensionTests(unittest.TestCase):
                 {"src_slot": 3, "dst_slot": 4, "bits_total": 1},
             ],
         }
-        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_odd_subset")
         self.assertEqual(lbs["density_lower_bound"], 5)
         self.assertEqual(lbs["lower_bound_ticks"], 5)
-        self.assertEqual(lbs["strict1_bounds_mode"], "fractional_exact")
-        self.assertIn(lbs["lower_bound_witness"]["kind"], {"full_graph_capacity", "fractional_exact_odd_subset"})
+        self.assertEqual(lbs["strict1_bounds_mode"], "fractional_odd_subset")
+        self.assertIn(lbs["lower_bound_witness"]["kind"], {"full_graph_capacity", "fractional_odd_subset"})
 
-    def test_fractional_exact_mode_rejects_too_many_slots(self):
+    def test_fractional_odd_subset_mode_rejects_too_many_slots(self):
         inst = {
             "version": 0,
             "model": "STRICT1",
@@ -145,10 +145,10 @@ class ModelExtensionTests(unittest.TestCase):
             "copy_bw_bits_per_tick": 1,
             "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
         }
-        with self.assertRaisesRegex(ValueError, "fractional_exact is limited"):
-            lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        with self.assertRaisesRegex(ValueError, "fractional_odd_subset is limited"):
+            lower_bound_components(inst, strict1_bounds_mode="fractional_odd_subset")
 
-    def test_fractional_exact_lb_does_not_exceed_exact_optimal(self):
+    def test_fractional_odd_subset_lb_does_not_exceed_exact_optimal(self):
         inst = {
             "version": 0,
             "model": "STRICT1",
@@ -163,11 +163,11 @@ class ModelExtensionTests(unittest.TestCase):
                 {"src_slot": 4, "dst_slot": 5, "bits_total": 1},
             ],
         }
-        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_odd_subset")
         opt = exact_optimal_ticks(inst)
         self.assertLessEqual(lbs["lower_bound_ticks"], opt)
 
-    def test_fractional_exact_ge_auto(self):
+    def test_fractional_odd_subset_ge_auto(self):
         inst = {
             "version": 0,
             "model": "STRICT1",
@@ -184,7 +184,7 @@ class ModelExtensionTests(unittest.TestCase):
             ],
         }
         lbs_auto = lower_bound_components(inst, strict1_bounds_mode="auto")
-        lbs_frac = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
+        lbs_frac = lower_bound_components(inst, strict1_bounds_mode="fractional_odd_subset")
         self.assertGreaterEqual(lbs_frac["density_lower_bound"], lbs_auto["density_lower_bound"])
 
     def test_invalid_strict1_bounds_mode_rejected(self):
@@ -289,9 +289,9 @@ class ModelExtensionTests(unittest.TestCase):
         self.assertFalse(auto_partial["bounds_complete"])
         self.assertEqual(auto_partial["bounds_complete_reason"], "auto_partial")
 
-        frac_exact = lower_bound_components(strict_small, strict1_bounds_mode="fractional_exact")
-        self.assertTrue(frac_exact["bounds_complete"])
-        self.assertEqual(frac_exact["bounds_complete_reason"], "exact_fractional_mode")
+        frac_odd = lower_bound_components(strict_small, strict1_bounds_mode="fractional_odd_subset")
+        self.assertTrue(frac_odd["bounds_complete"])
+        self.assertEqual(frac_odd["bounds_complete_reason"], "fractional_odd_subset")
 
         frac_heur = lower_bound_components(strict_large, strict1_bounds_mode="fractional_heuristic")
         self.assertFalse(frac_heur["bounds_complete"])
@@ -327,7 +327,7 @@ class ModelExtensionTests(unittest.TestCase):
         expected = {
             BOUNDS_REASON_AUTO_EXHAUSTIVE: True,
             BOUNDS_REASON_AUTO_PARTIAL: False,
-            BOUNDS_REASON_EXACT_FRACTIONAL_MODE: True,
+            BOUNDS_REASON_FRACTIONAL_ODD_SUBSET: True,
             BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL: False,
             BOUNDS_REASON_READ1_WRITE1_COMPLETE: True,
         }
@@ -360,7 +360,7 @@ class ModelExtensionTests(unittest.TestCase):
                     "copy_bw_bits_per_tick": 1,
                     "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
                 },
-                "fractional_exact",
+                "fractional_odd_subset",
             ),
             (
                 {
@@ -384,7 +384,7 @@ class ModelExtensionTests(unittest.TestCase):
         expected = [
             "BOUNDS_REASON_AUTO_EXHAUSTIVE",
             "BOUNDS_REASON_AUTO_PARTIAL",
-            "BOUNDS_REASON_EXACT_FRACTIONAL_MODE",
+            "BOUNDS_REASON_FRACTIONAL_ODD_SUBSET",
             "BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL",
             "BOUNDS_REASON_READ1_WRITE1_COMPLETE",
         ]
@@ -571,7 +571,7 @@ class SchemaFilesTests(unittest.TestCase):
         expected = [
             BOUNDS_REASON_AUTO_EXHAUSTIVE,
             BOUNDS_REASON_AUTO_PARTIAL,
-            BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+            BOUNDS_REASON_FRACTIONAL_ODD_SUBSET,
             BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
             BOUNDS_REASON_READ1_WRITE1_COMPLETE,
             None,

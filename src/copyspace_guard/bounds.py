@@ -11,11 +11,11 @@ from .types import Instance, READ1_WRITE1, STRICT1
 DEFAULT_EXHAUSTIVE_SUBSET_LIMIT = 20
 MAX_EXHAUSTIVE_SUBSET_LIMIT = 24
 DEFAULT_STRICT1_BOUNDS_MODE = "auto"
-STRICT1_BOUNDS_MODES = {"auto", "fractional_exact", "fractional_heuristic"}
-MAX_FRACTIONAL_EXACT_SLOTS = 24
+STRICT1_BOUNDS_MODES = {"auto", "fractional_odd_subset", "fractional_heuristic"}
+MAX_FRACTIONAL_ODD_SUBSET_SLOTS = 24
 BOUNDS_REASON_AUTO_EXHAUSTIVE = BoundsReason.AUTO_EXHAUSTIVE.value
 BOUNDS_REASON_AUTO_PARTIAL = BoundsReason.AUTO_PARTIAL.value
-BOUNDS_REASON_EXACT_FRACTIONAL_MODE = BoundsReason.EXACT_FRACTIONAL_MODE.value
+BOUNDS_REASON_FRACTIONAL_ODD_SUBSET = BoundsReason.FRACTIONAL_ODD_SUBSET.value
 BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL = BoundsReason.FRACTIONAL_HEURISTIC_PARTIAL.value
 BOUNDS_REASON_READ1_WRITE1_COMPLETE = BoundsReason.READ1_WRITE1_COMPLETE.value
 
@@ -85,25 +85,21 @@ def _strict1_bounds(
     bounds_complete = slots <= exhaustive_subset_limit
     bounds_complete_reason = BOUNDS_REASON_AUTO_EXHAUSTIVE if bounds_complete else BOUNDS_REASON_AUTO_PARTIAL
 
-    if strict1_bounds_mode == "fractional_exact":
-        if slots > MAX_FRACTIONAL_EXACT_SLOTS:
+    if strict1_bounds_mode == "fractional_odd_subset":
+        if slots > MAX_FRACTIONAL_ODD_SUBSET_SLOTS:
             raise ValueError(
-                f"fractional_exact is limited to <= {MAX_FRACTIONAL_EXACT_SLOTS} slots; got {slots}"
+                f"fractional_odd_subset is limited to <= {MAX_FRACTIONAL_ODD_SUBSET_SLOTS} slots; got {slots}"
             )
         if slots >= 3:
             _, internal = _compute_edge_internal(slots, edges)
             frac_lb = 0
-            frac_num = 0
-            frac_den = 1
             best_subset: list[int] = []
             best_internal = 0
             for mask in range(1, 1 << slots):
                 k = mask.bit_count()
                 if k < 3 or (k % 2 == 0):
                     continue
-                frac_num = 2 * internal[mask]
-                frac_den = k - 1
-                mask_lb = math.ceil(frac_num / frac_den) if internal[mask] else 0
+                mask_lb = math.ceil((2 * internal[mask]) / (k - 1)) if internal[mask] else 0
                 if mask_lb > frac_lb:
                     frac_lb = mask_lb
                     best_subset = [i for i in range(slots) if mask & (1 << i)]
@@ -111,7 +107,7 @@ def _strict1_bounds(
             if frac_lb > density_lb:
                 density_lb = frac_lb
                 witness = {
-                    "kind": "fractional_exact_odd_subset",
+                    "kind": "fractional_odd_subset",
                     "subset": best_subset,
                     "subset_size": len(best_subset),
                     "internal_chunks": best_internal,
@@ -128,8 +124,8 @@ def _strict1_bounds(
             "total_chunks": total_chunks,
             "tick_capacity_chunks": tick_capacity,
             "lower_bound_witness": witness,
-            "bounds_complete": slots <= MAX_FRACTIONAL_EXACT_SLOTS,
-            "bounds_complete_reason": BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+            "bounds_complete": slots <= MAX_FRACTIONAL_ODD_SUBSET_SLOTS,
+            "bounds_complete_reason": BOUNDS_REASON_FRACTIONAL_ODD_SUBSET,
             "exhaustive_subset_limit": exhaustive_subset_limit,
             "strict1_bounds_mode": strict1_bounds_mode,
         }
@@ -142,18 +138,30 @@ def _strict1_bounds(
         for mask in range(1, 1 << slots):
             k = mask.bit_count()
             cap = k // 2
-            if cap <= 0:
-                continue
-            lb_value = math.ceil(internal[mask] / cap) if internal[mask] else 0
-            if lb_value > density_lb:
-                density_lb = lb_value
-                witness = {
-                    "kind": "subset_density",
-                    "subset": [i for i in range(slots) if mask & (1 << i)],
-                    "subset_size": k,
-                    "internal_chunks": internal[mask],
-                    "tick_capacity_chunks": cap,
-                }
+            if cap > 0:
+                lb_value = math.ceil(internal[mask] / cap) if internal[mask] else 0
+                if lb_value > density_lb:
+                    density_lb = lb_value
+                    witness = {
+                        "kind": "subset_density",
+                        "subset": [i for i in range(slots) if mask & (1 << i)],
+                        "subset_size": k,
+                        "internal_chunks": internal[mask],
+                        "tick_capacity_chunks": cap,
+                    }
+            if k >= 3 and (k % 2 == 1):
+                frac_lb = math.ceil((2 * internal[mask]) / (k - 1)) if internal[mask] else 0
+                if frac_lb > density_lb:
+                    density_lb = frac_lb
+                    witness = {
+                        "kind": "fractional_odd_subset",
+                        "subset": [i for i in range(slots) if mask & (1 << i)],
+                        "subset_size": k,
+                        "internal_chunks": internal[mask],
+                        "fraction_numerator": 2 * internal[mask],
+                        "fraction_denominator": k - 1,
+                        "formula": "ceil(2*E(S)/(abs(S)-1))",
+                    }
     elif run_large_heuristics and slots >= 2:
         # Deterministic large-instance fallback: evaluate dense subsets around
         # high-degree vertices to tighten the lower bound without full 2^N scan.

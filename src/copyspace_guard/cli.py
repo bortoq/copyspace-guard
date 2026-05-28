@@ -35,6 +35,7 @@ from .core import (
 )
 from .report import write_reports
 from .types import Schedule
+from .types import Report
 from .importers import (
     import_csv_with_map,
     import_msccl_xml,
@@ -46,18 +47,42 @@ from .importers import (
 
 
 def _check_bounds_mode_slots(inst: dict[str, Any], bounds_mode: str) -> None:
-    if bounds_mode == "fractional_exact" and str(inst.get("model", "STRICT1")) == "STRICT1":
+    if bounds_mode == "fractional_odd_subset" and str(inst.get("model", "STRICT1")) == "STRICT1":
         slots = int(inst.get("slots", 0))
         if slots > 24:
-            raise ValueError(f"fractional_exact is limited to <= 24 slots; got {slots}")
+            raise ValueError(f"fractional_odd_subset is limited to <= 24 slots; got {slots}")
 
 
-def cmd_analyze(args: argparse.Namespace) -> int:
-    outdir = prepare_output_dir(Path(args.outdir))
+def _validate_common_args(args: argparse.Namespace) -> None:
     if args.max_errors is not None and args.max_errors < 0:
         raise ValueError("--max-errors must be >= 0")
     if args.bounds_subset_limit < 0:
         raise ValueError("--bounds-subset-limit must be >= 0")
+
+
+def _load_roi_config_and_compute(
+    args: argparse.Namespace,
+    rep_current: Report,
+    rep_greedy: Report,
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    roi_config: dict[str, Any] = {}
+    if args.roi:
+        loaded_roi = load_config(args.roi)
+        roi_config = loaded_roi.get("roi", loaded_roi)
+    cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
+    comp = compare_reports(rep_current, rep_greedy, cost_per_tick)
+    roi_kind = getattr(args, "roi_kind", "customer_vs_greedy")
+    roi_summary = compute_roi(
+        comp, roi_config,
+        theoretical_saved_ticks=max(rep_current.gap_ticks, 0),
+        kind=roi_kind,
+    )
+    return comp, roi_summary
+
+
+def cmd_analyze(args: argparse.Namespace) -> int:
+    outdir = prepare_output_dir(Path(args.outdir))
+    _validate_common_args(args)
     inst = instance_from_csv(args.csv, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
     if args.current_schedule_json and args.current_schedule_csv:
@@ -134,13 +159,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         for label, rep in [(current_label, rep_current), ("greedy", rep_greedy)]:
             if rep.ticks_total > args.max_output_ticks:
                 raise ValueError(f"{label} ticks_total {rep.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
-    roi_config = {}
-    if args.roi:
-        loaded_roi = load_config(args.roi)
-        roi_config = loaded_roi.get("roi", loaded_roi)
-    cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
-    comp = compare_reports(rep_current, rep_greedy, cost_per_tick)
-    roi_summary = compute_roi(comp, roi_config, theoretical_saved_ticks=max(rep_current.gap_ticks, 0))
+    args.roi_kind = "baseline_vs_greedy" if current_label == "baseline" else "customer_vs_greedy"
+    comp, roi_summary = _load_roi_config_and_compute(args, rep_current, rep_greedy)
 
     rep_current_dict = rep_current.to_dict()
     rep_greedy_dict = rep_greedy.to_dict()
@@ -199,18 +219,17 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     write_reports(outdir, summary)
 
     print(f"Copy-Space Guard analysis written to: {outdir}")
-    print(f"{current_label}: status={rep_current.status} ticks={rep_current.ticks_total} lb={rep_current.lower_bound_ticks} gap={rep_current.gap_to_lower_bound:.6f} util={rep_current.utilization:.4f}")
-    print(f"greedy:   status={rep_greedy.status} ticks={rep_greedy.ticks_total} lb={rep_greedy.lower_bound_ticks} gap={rep_greedy.gap_to_lower_bound:.6f} util={rep_greedy.utilization:.4f}")
-    print(f"saved_ticks={comp['saved_ticks']} estimated_savings={comp['estimated_savings']:.2f}")
+    gap_rel = rep_current.gap_reliability or "unknown"
+    baseline_tag = " (baseline comparison)" if current_label == "baseline" else ""
+    print(f"{current_label}: status={rep_current.status} ticks={rep_current.ticks_total} lb={rep_current.lower_bound_ticks} gap={rep_current.gap_to_lower_bound:.6f} util={rep_current.utilization:.4f} gap_rel={gap_rel}")
+    print(f"greedy:   status={rep_greedy.status} ticks={rep_greedy.ticks_total} lb={rep_greedy.lower_bound_ticks} gap={rep_greedy.gap_to_lower_bound:.6f} util={rep_greedy.utilization:.4f} gap_rel={rep_greedy.gap_reliability or 'unknown'}")
+    print(f"saved_ticks={comp['saved_ticks']} estimated_savings={comp['estimated_savings']:.2f}{baseline_tag}")
     return 0 if rep_current.status == "PASS" and rep_greedy.status == "PASS" else 2
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
     outdir = prepare_output_dir(Path(args.outdir))
-    if args.max_errors is not None and args.max_errors < 0:
-        raise ValueError("--max-errors must be >= 0")
-    if args.bounds_subset_limit < 0:
-        raise ValueError("--bounds-subset-limit must be >= 0")
+    _validate_common_args(args)
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
     if args.schedule_json and args.schedule_csv:
@@ -356,10 +375,7 @@ def _load_schedule_auto(path: str, *, model: str) -> Schedule:
 
 def cmd_compare(args: argparse.Namespace) -> int:
     outdir = prepare_output_dir(Path(args.outdir))
-    if args.max_errors is not None and args.max_errors < 0:
-        raise ValueError("--max-errors must be >= 0")
-    if args.bounds_subset_limit < 0:
-        raise ValueError("--bounds-subset-limit must be >= 0")
+    _validate_common_args(args)
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
     sched_a = _load_schedule_auto(args.schedule_a, model=str(inst.get("model", "STRICT1")))
@@ -384,13 +400,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
         if rep_b.ticks_total > args.max_output_ticks:
             raise ValueError(f"schedule_b ticks_total {rep_b.ticks_total} exceeds --max-output-ticks {args.max_output_ticks}")
 
-    roi_config = {}
-    if args.roi:
-        loaded_roi = load_config(args.roi)
-        roi_config = loaded_roi.get("roi", loaded_roi)
-    cost_per_tick = args.cost_per_tick if args.cost_per_tick > 0 else roi_cost_per_tick(roi_config)
-    comp = compare_reports(rep_a, rep_b, cost_per_tick)
-    roi_summary = compute_roi(comp, roi_config, theoretical_saved_ticks=max(rep_a.gap_ticks, 0))
+    args.roi_kind = "customer_vs_greedy"
+    comp, roi_summary = _load_roi_config_and_compute(args, rep_a, rep_b)
 
     dump_json(outdir / "instance.json", inst)
     dump_json(outdir / "schedule_schedule_a.json", sched_a)
@@ -436,17 +447,14 @@ def cmd_compare(args: argparse.Namespace) -> int:
     dump_json(outdir / "summary.json", summary)
     write_reports(outdir, summary)
     print(f"Copy-Space Guard compare written to: {outdir}")
-    print(f"schedule_a: status={rep_a.status} ticks={rep_a.ticks_total} lb={rep_a.lower_bound_ticks} gap={rep_a.gap_to_lower_bound:.6f} util={rep_a.utilization:.4f}")
-    print(f"schedule_b: status={rep_b.status} ticks={rep_b.ticks_total} lb={rep_b.lower_bound_ticks} gap={rep_b.gap_to_lower_bound:.6f} util={rep_b.utilization:.4f}")
+    print(f"schedule_a: status={rep_a.status} ticks={rep_a.ticks_total} lb={rep_a.lower_bound_ticks} gap={rep_a.gap_to_lower_bound:.6f} util={rep_a.utilization:.4f} gap_rel={rep_a.gap_reliability or 'unknown'}")
+    print(f"schedule_b: status={rep_b.status} ticks={rep_b.ticks_total} lb={rep_b.lower_bound_ticks} gap={rep_b.gap_to_lower_bound:.6f} util={rep_b.utilization:.4f} gap_rel={rep_b.gap_reliability or 'unknown'}")
     print(f"saved_ticks={comp['saved_ticks']} estimated_savings={comp['estimated_savings']:.2f}")
     return 0 if rep_a.status == "PASS" and rep_b.status == "PASS" else 2
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    if args.max_errors is not None and args.max_errors < 0:
-        raise ValueError("--max-errors must be >= 0")
-    if args.bounds_subset_limit < 0:
-        raise ValueError("--bounds-subset-limit must be >= 0")
+    _validate_common_args(args)
     inst = load_json(args.instance)
     _check_bounds_mode_slots(inst, args.bounds_mode)
     sched = load_json(args.schedule)
@@ -984,7 +992,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--current-schedule-csv", default=None, help="optional customer/current schedule CSV: tick,src_slot,dst_slot,len_bits")
     a.add_argument("--summary-only", action="store_true", help="do not write full schedule JSON/CSV artifacts")
     a.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    a.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
+    a.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto", help="STRICT1 lower-bound mode")
     a.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     a.add_argument("--max-demands", type=int, default=None, help="fail if normalized demand count exceeds this limit")
     a.add_argument("--max-slots", type=int, default=None, help="fail if slot count exceeds this limit")
@@ -1005,7 +1013,7 @@ def build_parser() -> argparse.ArgumentParser:
     au.add_argument("--solver-plugin-timeout", type=float, default=300.0, help="timeout in seconds for --solver-plugin")
     au.add_argument("--solver-plugin-max-output-bytes", type=int, default=8_000_000, help="max stdout bytes accepted from --solver-plugin")
     au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    au.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
+    au.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto", help="STRICT1 lower-bound mode")
     au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
     au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
     au.add_argument("--max-gap", type=float, default=None, help="optional CI threshold for gap_to_lower_bound")
@@ -1025,7 +1033,7 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
     c.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
     c.add_argument("--bounds-subset-limit", type=int, default=20)
-    c.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
+    c.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto", help="STRICT1 lower-bound mode")
     c.add_argument("--max-errors", type=int, default=None)
     c.add_argument("--max-output-ticks", type=int, default=None)
     c.add_argument("--outdir", default="artifacts/compare")
@@ -1036,7 +1044,7 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("schedule")
     v.add_argument("--report")
     v.add_argument("--bounds-subset-limit", type=int, default=20)
-    v.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_exact"], default="auto")
+    v.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto")
     v.add_argument("--max-errors", type=int, default=None)
     v.set_defaults(func=cmd_validate)
 

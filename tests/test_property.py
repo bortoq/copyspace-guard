@@ -6,7 +6,7 @@ from typing import Any
 from copyspace_guard.core import (
     BOUNDS_REASON_AUTO_EXHAUSTIVE,
     BOUNDS_REASON_AUTO_PARTIAL,
-    BOUNDS_REASON_EXACT_FRACTIONAL_MODE,
+    BOUNDS_REASON_FRACTIONAL_ODD_SUBSET,
     BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
     BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     exact_optimal_ticks,
@@ -102,10 +102,10 @@ else:
 
         @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
         @given(instance_strategy(max_slots=24, max_demands=16, max_bits=8))
-        def test_reason_complete_invariant_fractional_exact_mode(self, inst: dict[str, Any]) -> None:
+        def test_reason_complete_invariant_fractional_odd_subset_mode(self, inst: dict[str, Any]) -> None:
             assume(inst["model"] == "STRICT1")
-            lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_exact")
-            self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_EXACT_FRACTIONAL_MODE)
+            lbs = lower_bound_components(inst, strict1_bounds_mode="fractional_odd_subset")
+            self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_FRACTIONAL_ODD_SUBSET)
             self.assertTrue(lbs["bounds_complete"])
 
         @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])

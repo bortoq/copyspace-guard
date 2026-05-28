@@ -72,6 +72,7 @@ def compute_roi(
     roi: Dict[str, Any] | None,
     *,
     theoretical_saved_ticks: float | None = None,
+    kind: str = "customer_vs_greedy",
 ) -> Dict[str, Any]:
     roi = dict(roi or {})
     saved_ticks = float(comparison.get("saved_ticks", 0.0)) if comparison.get("comparable", True) else 0.0
@@ -84,7 +85,7 @@ def compute_roi(
     yearly_runs = monthly_runs * months_per_year
     practical = _roi_block(saved_ticks, roi)
     theoretical_max = _roi_block(theo_ticks, roi)
-    return {
+    base: Dict[str, Any] = {
         "inputs": roi,
         "cost_per_tick": cost_tick,
         "saved_ticks_per_run": saved_ticks,  # backward-compatible flat fields
@@ -96,6 +97,14 @@ def compute_roi(
         "yearly_runs": yearly_runs,
         "savings_per_month_usd": practical["savings_per_month_usd"],
         "savings_per_year_usd": practical["savings_per_year_usd"],
+    }
+    if kind == "baseline_vs_greedy":
+        base["savings_kind"] = "baseline_comparison"
+        base["savings_note"] = (
+            "compared against naive schedule; actual savings depend on your solver"
+        )
+    return {
+        **base,
         "practical": {
             "description": "vs greedy (practical switch target)",
             **practical,
