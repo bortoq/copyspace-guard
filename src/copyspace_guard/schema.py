@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from .io import validate_instance
-from .types import MODELS
+from .types import Instance, MODELS
 
 
 def _require_object(obj: Any, name: str) -> dict[str, Any]:
@@ -19,7 +19,7 @@ def _require_keys(obj: dict[str, Any], keys: list[str], name: str) -> None:
 
 
 def validate_instance_contract(obj: Any) -> None:
-    validate_instance(_require_object(obj, "instance"))
+    validate_instance(cast("Instance", _require_object(obj, "instance")))
 
 
 def validate_schedule_contract(obj: Any) -> None:

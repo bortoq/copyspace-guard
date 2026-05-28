@@ -36,6 +36,7 @@ from .core import (
 from .report import write_reports
 from .types import Schedule
 from .types import Report
+from .types import Instance
 from .importers import (
     import_csv_with_map,
     import_msccl_xml,
@@ -46,7 +47,7 @@ from .importers import (
 )
 
 
-def _check_bounds_mode_slots(inst: dict[str, Any], bounds_mode: str) -> None:
+def _check_bounds_mode_slots(inst: Instance, bounds_mode: str) -> None:
     if bounds_mode == "fractional_odd_subset" and str(inst.get("model", "STRICT1")) == "STRICT1":
         slots = int(inst.get("slots", 0))
         if slots > 24:
@@ -64,7 +65,7 @@ def _load_roi_config_and_compute(
     args: argparse.Namespace,
     rep_current: Report,
     rep_greedy: Report,
-) -> tuple[dict[str, Any], dict[str, Any], str]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     roi_config: dict[str, Any] = {}
     if args.roi:
         loaded_roi = load_config(args.roi)
@@ -537,7 +538,7 @@ def cmd_import_csv(args: argparse.Namespace) -> int:
 
 
 def cmd_import_nccl_log(args: argparse.Namespace) -> int:
-    rows = import_nccl_log_demands(args.log, max_rows=args.max_rows, max_file_size=args.max_file_size)
+    rows, _meta = import_nccl_log_demands(args.log, max_rows=args.max_rows, max_file_size=args.max_file_size)
     out_path = prepare_output_file(Path(args.out))
     write_imported_demands_csv(rows, out_path)
     print(f"demands CSV written to: {out_path} rows={len(rows)}")
@@ -545,10 +546,42 @@ def cmd_import_nccl_log(args: argparse.Namespace) -> int:
 
 
 def cmd_import_pytorch_trace(args: argparse.Namespace) -> int:
-    rows = import_pytorch_trace_demands(args.trace, max_rows=args.max_rows, max_file_size=args.max_file_size)
+    rows, _meta = import_pytorch_trace_demands(args.trace, max_rows=args.max_rows, max_file_size=args.max_file_size)
     out_path = prepare_output_file(Path(args.out))
     write_imported_demands_csv(rows, out_path)
     print(f"demands CSV written to: {out_path} rows={len(rows)}")
+    return 0
+
+
+def cmd_infer(args: argparse.Namespace) -> int:
+    path = Path(args.log)
+    kind = args.kind
+    if kind is None:
+        ext = path.suffix.lower()
+        if ext == ".json":
+            kind = "pytorch"
+        else:
+            kind = "nccl"
+    if kind == "nccl":
+        rows, meta = import_nccl_log_demands(path, max_rows=args.max_rows, max_file_size=args.max_file_size)
+    else:
+        rows, meta = import_pytorch_trace_demands(path, max_rows=args.max_rows, max_file_size=args.max_file_size)
+    slots = meta["slots"]
+    bw = meta.get("max_bytes_per_transfer", 0) * 8
+    print(f"inferred: slots={slots} bw={bw} ({bw // 8} bytes per transfer)")
+    throughput = meta.get("throughput_estimate_gbps")
+    if throughput is not None:
+        print(f"throughput estimate: {throughput} GB/s")
+    demands_path = None
+    if args.out:
+        out_path = prepare_output_file(Path(args.out))
+        write_imported_demands_csv(rows, out_path)
+        demands_path = str(out_path)
+        print(f"demands CSV written to: {out_path}")
+    if demands_path:
+        print(f"run: copyspace-guard audit --demands {demands_path} --bw {bw} --slots {slots} --schedule schedule.csv")
+    else:
+        print(f"run: copyspace-guard import-nccl-log --log {path} --out demands.csv --bw {bw} --slots {slots}")
     return 0
 
 
@@ -782,7 +815,7 @@ def cmd_bench_suite(args: argparse.Namespace) -> int:
     return 0
 
 
-def _make_bounds_bench_instance(*, slots: int, pattern: str, bw: int) -> dict[str, Any]:
+def _make_bounds_bench_instance(*, slots: int, pattern: str, bw: int) -> Instance:
     demands: list[dict[str, int]] = []
     if pattern == "ring":
         for i in range(slots):
@@ -800,13 +833,13 @@ def _make_bounds_bench_instance(*, slots: int, pattern: str, bw: int) -> dict[st
         for i in range(slots):
             demands.append({"src_slot": i, "dst_slot": (i + 1) % slots, "bits_total": bw})
             demands.append({"src_slot": i, "dst_slot": (i + 2) % slots, "bits_total": bw})
-    return {
+    return cast(Instance, {
         "version": 0,
         "model": "STRICT1",
         "slots": slots,
         "copy_bw_bits_per_tick": bw,
         "demands": demands,
-    }
+    })
 
 
 def cmd_bench_bounds(args: argparse.Namespace) -> int:
@@ -1098,6 +1131,14 @@ def build_parser() -> argparse.ArgumentParser:
     ipt.add_argument("--max-rows", type=int, default=None)
     ipt.add_argument("--max-file-size", type=int, default=None)
     ipt.set_defaults(func=cmd_import_pytorch_trace)
+
+    i = sub.add_parser("infer", help="infer bandwidth and slot count from a communication log")
+    i.add_argument("log", help="NCCL debug log or PyTorch trace JSON path")
+    i.add_argument("--kind", choices=["nccl", "pytorch"], default=None, help="log kind (auto-detect by extension)")
+    i.add_argument("--out", default=None, help="output demands CSV path (optional)")
+    i.add_argument("--max-rows", type=int, default=None)
+    i.add_argument("--max-file-size", type=int, default=None)
+    i.set_defaults(func=cmd_infer)
 
     va = sub.add_parser("validate-artifact", help="validate a generated v0 JSON artifact contract")
     va.add_argument("--kind", choices=["instance", "schedule", "report", "summary"], required=True)

@@ -26,24 +26,27 @@ Copy-Space Guard supports three STRICT1 modes:
 
 - `auto` (default):
   - exact subset-density up to `--bounds-subset-limit` (capped),
+  - when subset enumeration is exhaustive, also computes the exact odd-subset
+    fractional lower bound `ceil(max_S(2*E(S)/(abs(S)-1)))` over odd subsets
+    as part of the same pass (no extra iteration),
   - deterministic heuristic/fractional/core relaxations for larger slot counts.
-- `fractional_exact`:
-  - computes exact odd-subset fractional lower bound
-    `ceil(max_S(2*E(S)/(abs(S)-1)))` over odd subsets,
-  - currently guarded to `slots <= 24` to avoid exponential blowups.
+- `fractional_odd_subset`:
+  - stand-alone mode that computes the exact odd-subset fractional lower bound,
+  - guarded to `slots <= 24` to avoid exponential blowups,
+  - useful when auto subset-density is capped but you want the odd-subset bound.
 - `fractional_heuristic`:
   - computes deterministic odd-subset fractional heuristic bounds for any slot count,
   - designed for large instances where exhaustive scans are impractical.
 
 `bounds_complete` semantics:
 
-- In `auto`, `bounds_complete` indicates whether exhaustive subset enumeration was used under the configured limit.
-- In `fractional_exact`, `bounds_complete=true` for accepted inputs (the mode rejects larger slot counts before report generation).
+- In `auto`, `bounds_complete` indicates whether exhaustive subset enumeration was used under the configured limit. When exhaustive, the odd-subset fractional bound is included.
+- In `fractional_odd_subset`, `bounds_complete=true` for accepted inputs (the mode rejects larger slot counts before report generation).
 
 Report metadata now includes:
 
-- `bounds_mode`: selected STRICT1 mode (`auto`, `fractional_heuristic`, or `fractional_exact` when applicable),
-- `bounds_complete_reason`: explicit reason tag (`auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `fractional_heuristic_partial`, ...).
+- `bounds_mode`: selected STRICT1 mode (`auto`, `fractional_odd_subset`, or `fractional_heuristic`),
+- `bounds_complete_reason`: explicit reason tag (`auto_exhaustive`, `auto_partial`, `fractional_odd_subset`, `fractional_heuristic_partial`, ...).
 
 ## Important limitation
 

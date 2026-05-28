@@ -177,28 +177,50 @@ def import_nccl_log_demands(
     *,
     max_rows: int | None = None,
     max_file_size: int | None = None,
-) -> list[tuple[int, int, int]]:
+) -> tuple[list[tuple[int, int, int]], dict[str, Any]]:
     _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
-    # Example supported line:
-    # ring: rank 0 -> rank 1, bytes=134217728
-    p = re.compile(r"rank\s+(\d+)\s*->\s*rank\s+(\d+).*?\bbytes\s*=\s*(\d+)", re.IGNORECASE)
+    p_transfer = re.compile(r"rank\s+(\d+)\s*->\s*rank\s+(\d+).*?\bbytes\s*=\s*(\d+)", re.IGNORECASE)
+    p_throughput = re.compile(r"throughput.*?(\d+(?:\.\d+)?)\s*(?:gb|gbps)", re.IGNORECASE)
     agg: dict[tuple[int, int], int] = {}
+    max_rank = -1
+    max_bytes = 0
+    throughput_estimate: float | None = None
+    unique: set[tuple[int, int]] = set()
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
-            m = p.search(line)
-            if not m:
+            m = p_transfer.search(line)
+            if m:
+                src = _as_int(m.group(1))
+                dst = _as_int(m.group(2))
+                bits = _as_int(m.group(3)) * 8
+                if src < 0 or dst < 0 or src == dst or bits <= 0:
+                    continue
+                key = (src, dst)
+                agg[key] = agg.get(key, 0) + bits
+                max_rank = max(max_rank, src, dst)
+                byte_val = bits // 8
+                if byte_val > max_bytes:
+                    max_bytes = byte_val
+                unique.add(key)
+                if max_rows is not None and len(agg) > max_rows:
+                    raise ValueError(f"demand row count exceeds --max-rows {max_rows}")
                 continue
-            src = _as_int(m.group(1))
-            dst = _as_int(m.group(2))
-            bits = _as_int(m.group(3)) * 8
-            if src < 0 or dst < 0 or src == dst or bits <= 0:
-                continue
-            agg[(src, dst)] = agg.get((src, dst), 0) + bits
-            if max_rows is not None and len(agg) > max_rows:
-                raise ValueError(f"demand row count exceeds --max-rows {max_rows}")
+            if throughput_estimate is None:
+                tm = p_throughput.search(line)
+                if tm:
+                    throughput_estimate = float(tm.group(1))
     if not agg:
         raise ValueError("no NCCL rank->rank byte lines found in log")
-    return [(s, t, b) for (s, t), b in sorted(agg.items())]
+    rows = [(s, t, b) for (s, t), b in sorted(agg.items())]
+    meta: dict[str, Any] = {
+        "max_rank": max_rank,
+        "slots": max_rank + 1,
+        "max_bytes_per_transfer": max_bytes,
+        "unique_pairs": len(unique),
+    }
+    if throughput_estimate is not None:
+        meta["throughput_estimate_gbps"] = throughput_estimate
+    return rows, meta
 
 
 def import_pytorch_trace_demands(
@@ -206,7 +228,7 @@ def import_pytorch_trace_demands(
     *,
     max_rows: int | None = None,
     max_file_size: int | None = None,
-) -> list[tuple[int, int, int]]:
+) -> tuple[list[tuple[int, int, int]], dict[str, Any]]:
     _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
     with open(path, "r", encoding="utf-8") as f:
         obj = json.load(f)
@@ -214,6 +236,9 @@ def import_pytorch_trace_demands(
     if not isinstance(events, list):
         raise ValueError("PyTorch trace must be a JSON list or contain traceEvents list")
     agg: dict[tuple[int, int], int] = {}
+    max_rank = -1
+    max_bytes = 0
+    unique: set[tuple[int, int]] = set()
     for ev in events:
         if not isinstance(ev, dict):
             continue
@@ -229,17 +254,30 @@ def import_pytorch_trace_demands(
             continue
         bits = _as_int(b) * 8
         rr = [_as_int(x) for x in ranks]
+        max_rank = max(max_rank, max(rr))
         rr.sort()
         for i, src in enumerate(rr):
             for dst in rr[i + 1:]:
                 if src == dst:
                     continue
-                agg[(src, dst)] = agg.get((src, dst), 0) + bits
+                key = (src, dst)
+                agg[key] = agg.get(key, 0) + bits
+                unique.add(key)
                 if max_rows is not None and len(agg) > max_rows:
                     raise ValueError(f"demand row count exceeds --max-rows {max_rows}")
+        byte_val = bits // 8
+        if byte_val > max_bytes:
+            max_bytes = byte_val
     if not agg:
         raise ValueError("no NCCL-like communication events with args.bytes+ranks found")
-    return [(s, t, b) for (s, t), b in sorted(agg.items())]
+    rows = [(s, t, b) for (s, t), b in sorted(agg.items())]
+    meta: dict[str, Any] = {
+        "max_rank": max_rank,
+        "slots": max_rank + 1,
+        "max_bytes_per_transfer": max_bytes,
+        "unique_pairs": len(unique),
+    }
+    return rows, meta
 
 
 def write_imported_demands_csv(

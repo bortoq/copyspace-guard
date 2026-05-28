@@ -117,8 +117,9 @@ class ImportersTests(unittest.TestCase):
                 "ring: rank 0 -> rank 1, bytes=2\n",
                 encoding="utf-8",
             )
-            rows = import_nccl_log_demands(p)
+            rows, meta = import_nccl_log_demands(p)
             self.assertEqual(rows, [(0, 1, 48), (1, 2, 64)])
+            self.assertEqual(meta["slots"], 3)
 
     def test_import_pytorch_trace_demands(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -133,8 +134,9 @@ class ImportersTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            rows = import_pytorch_trace_demands(p)
+            rows, meta = import_pytorch_trace_demands(p)
             self.assertEqual(rows, [(0, 1, 128), (0, 2, 128), (1, 2, 128)])
+            self.assertEqual(meta["slots"], 3)
 
 
 if __name__ == "__main__":

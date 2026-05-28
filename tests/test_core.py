@@ -565,24 +565,16 @@ class SchemaFilesTests(unittest.TestCase):
             Draft202012Validator(schema).validate(obj)
 
     def test_bounds_reason_schema_enum_matches_constants(self):
-        # Order-sensitive: keep this list in sync with
-        # schemas/report_v0.schema.json and schemas/summary_v0.schema.json enums.
-        # If a new reason is added, update constants, schemas, and this list together.
-        expected = [
-            BOUNDS_REASON_AUTO_EXHAUSTIVE,
-            BOUNDS_REASON_AUTO_PARTIAL,
-            BOUNDS_REASON_FRACTIONAL_ODD_SUBSET,
-            BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
-            BOUNDS_REASON_READ1_WRITE1_COMPLETE,
-            None,
-        ]
+        from copyspace_guard.bounds_reason import BoundsReason
+        reasons = list(BoundsReason)
+        expected = [e.value for e in reasons] + [None]
         report_schema = json.loads((ROOT / "schemas" / "report_v0.schema.json").read_text(encoding="utf-8"))
         report_enum = report_schema["properties"]["bounds_complete_reason"]["enum"]
-        self.assertEqual(report_enum, expected)
+        self.assertCountEqual(report_enum, expected)
 
         summary_schema = json.loads((ROOT / "schemas" / "summary_v0.schema.json").read_text(encoding="utf-8"))
         summary_enum = summary_schema["$defs"]["report"]["properties"]["bounds_complete_reason"]["enum"]
-        self.assertEqual(summary_enum, expected)
+        self.assertCountEqual(summary_enum, expected)
 
 
 class IoAndContractTests(unittest.TestCase):

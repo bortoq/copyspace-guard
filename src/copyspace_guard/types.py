@@ -27,9 +27,16 @@ class Schedule(TypedDict):
     ticks: List[List[Chunk]]
 
 
-# Instance has optional fields (id, notes) not captured here;
-# it is used structurally as Dict[str, Any] throughout the codebase.
-Instance = Dict[str, Any]
+class Instance(TypedDict, total=False):
+    version: int
+    model: str
+    slots: int
+    copy_bw_bits_per_tick: int
+    demands: List[Demand]
+    id: str | None
+    notes: str | None
+    max_demands: int | None
+    max_slots: int | None
 
 
 @dataclass(frozen=True)
