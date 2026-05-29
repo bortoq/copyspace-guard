@@ -158,6 +158,33 @@ else:
             rep = validate_schedule(inst, solve_greedy(inst))
             self.assertGreaterEqual(rep.ticks_total, lbs["lower_bound_ticks"])
 
+        @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=40, max_demands=12, max_bits=4))
+        def test_greedy_ticks_at_least_lower_bound_large(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            lbs = lower_bound_components(inst)
+            rep = validate_schedule(inst, solve_greedy(inst))
+            self.assertGreaterEqual(rep.ticks_total, lbs["lower_bound_ticks"])
+
+        @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=5, max_demands=6, max_bits=4))
+        def test_bounds_monotonic_with_demands(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "STRICT1")
+            lbs_base = lower_bound_components(inst)
+            extra: list[dict[str, int]] = [{"src_slot": 0, "dst_slot": 1, "bits_total": int(inst["copy_bw_bits_per_tick"])}]
+            inst2 = dict(inst)
+            inst2["demands"] = list(inst["demands"]) + extra
+            lbs_larger = lower_bound_components(inst2)
+            self.assertGreaterEqual(lbs_larger["lower_bound_ticks"], lbs_base["lower_bound_ticks"])
+
+        @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(max_slots=10, max_demands=8, max_bits=4))
+        def test_read1_write1_bounds_always_complete(self, inst: dict[str, Any]) -> None:
+            assume(inst["model"] == "READ1_WRITE1")
+            lbs = lower_bound_components(inst)
+            self.assertTrue(lbs["bounds_complete"])
+            self.assertEqual(lbs["bounds_complete_reason"], BOUNDS_REASON_READ1_WRITE1_COMPLETE)
+
 
 if __name__ == "__main__":
     unittest.main()

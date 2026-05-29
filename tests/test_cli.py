@@ -179,6 +179,42 @@ class CliTests(unittest.TestCase):
             self.assertEqual(rc.returncode, 1)
             self.assertIn("exceeds --max-slots", rc.stderr)
 
+    def test_industry_demo_gpt2_saved_ticks_via_cli(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli(
+                "analyze",
+                "--csv", "examples/gpt2_ddp_allreduce/demands.csv",
+                "--bw", "25000000000",
+                "--slots", "8",
+                "--current-schedule-csv", "examples/gpt2_ddp_allreduce/naive_schedule.csv",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            greedy = data["reports"]["greedy"]["ticks_total"]
+            current = data["reports"]["customer_current"]["ticks_total"]
+            self.assertGreater(current, greedy)
+            self.assertEqual(data["comparison"]["saved_ticks"], current - greedy)
+
+    def test_industry_demo_kv_cache_saved_ticks_via_cli(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "out"
+            run_cli(
+                "analyze",
+                "--csv", "examples/kv_cache_disagg/demands.csv",
+                "--bw", "50000000000",
+                "--slots", "8",
+                "--current-schedule-csv", "examples/kv_cache_disagg/naive_schedule.csv",
+                "--summary-only",
+                "--outdir", str(out),
+            )
+            data = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            greedy = data["reports"]["greedy"]["ticks_total"]
+            current = data["reports"]["customer_current"]["ticks_total"]
+            self.assertGreater(current, greedy)
+            self.assertEqual(data["comparison"]["saved_ticks"], current - greedy)
+
     def test_outdir_parent_traversal_is_rejected(self):
         rc = run_cli("analyze", "--csv", "examples/ring15.csv", "--bw", "256", "--outdir", "../copyspace-guard-escape", check=False)
         self.assertEqual(rc.returncode, 1)
@@ -269,6 +305,38 @@ class CliTests(unittest.TestCase):
         ns = argparse.Namespace(max_errors=0, bounds_subset_limit=-5)
         with self.assertRaisesRegex(ValueError, "--bounds-subset-limit"):
             _validate_common_args(ns)
+
+    def test_schedule_csv_to_json_smoke(self):
+        with tempfile.TemporaryDirectory() as td:
+            csv = Path(td) / "simple.csv"
+            csv.write_text("tick,src_slot,dst_slot,len_bits\n0,0,1,8\n0,2,3,8\n", encoding="utf-8")
+            out = Path(td) / "sched.json"
+            rc = run_cli("schedule-csv-to-json", "--csv", str(csv), "--out", str(out))
+            self.assertEqual(rc.returncode, 0)
+            data = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(data["version"], 0)
+            self.assertEqual(len(data["ticks"][0]), 2)
+
+    def test_cmd_validate_accepts_valid_schedule(self):
+        with tempfile.TemporaryDirectory() as td:
+            inst = Path(td) / "instance.json"
+            sched = Path(td) / "schedule.json"
+            inst.write_text(json.dumps({
+                "version": 0,
+                "model": "STRICT1",
+                "slots": 2,
+                "copy_bw_bits_per_tick": 1,
+                "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+            }), encoding="utf-8")
+            sched.write_text(json.dumps({
+                "version": 0,
+                "model": "STRICT1",
+                "ticks": [[{"src_slot": 0, "dst_slot": 1, "len_bits": 1}]],
+            }), encoding="utf-8")
+            rc = run_cli("validate", str(inst), str(sched))
+            self.assertEqual(rc.returncode, 0)
+            self.assertIn("PASS", rc.stdout)
+            self.assertIn("ticks=", rc.stdout)
 
 
 if __name__ == "__main__":
@@ -840,6 +908,40 @@ class IntegrationCliTests(unittest.TestCase):
             self.assertIn("customer_current", rc.stdout)
             report = json.loads((out / "report_customer_current.json").read_text(encoding="utf-8"))
             self.assertEqual(report["status"], "FAIL")
+
+    def test_solver_plugin_timeout_respected(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = Path(td) / "sleepy_plugin.py"
+            plugin.write_text(
+                "import json, sys, time\n"
+                "inst = json.load(sys.stdin)\n"
+                "time.sleep(999)\n",
+                encoding="utf-8",
+            )
+            rc = run_cli(
+                "audit", "--demands", "examples/ring15.csv", "--bw", "256",
+                "--slots", "15", "--solver-plugin", str(plugin),
+                "--solver-plugin-timeout", "1",
+                "--outdir", str(Path(td) / "out"), check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
+
+    def test_solver_plugin_max_output_bytes_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = Path(td) / "chatty_plugin.py"
+            plugin.write_text(
+                "import json, sys\n"
+                "inst = json.load(sys.stdin)\n"
+                "sys.stdout.write('x' * 10000)\n",
+                encoding="utf-8",
+            )
+            rc = run_cli(
+                "audit", "--demands", "examples/ring15.csv", "--bw", "256",
+                "--slots", "15", "--solver-plugin", str(plugin),
+                "--solver-plugin-max-output-bytes", "100",
+                "--outdir", str(Path(td) / "out"), check=False,
+            )
+            self.assertNotEqual(rc.returncode, 0)
 
     def test_infer_nccl_log_emits_runnable_command(self):
         with tempfile.TemporaryDirectory() as td:

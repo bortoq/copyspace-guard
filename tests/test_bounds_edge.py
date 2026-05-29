@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import argparse
+import io
+import sys
 import unittest
 from pathlib import Path
 
+from copyspace_guard.bounds_reason import BoundsReason
+from copyspace_guard.cli import _resolve_bounds_mode
 from copyspace_guard.core import (
     lower_bound_components,
     solve_baseline,
     solve_greedy,
     validate_schedule,
 )
+from copyspace_guard.validate import _is_partial_bound
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -137,6 +143,43 @@ class BoundsEdgeTests(unittest.TestCase):
             inst = _make_inst(slots=n, demands=[(i, (i + 1) % n, 100) for i in range(n)])
             lbs = lower_bound_components(inst)
             self.assertGreaterEqual(lbs["lower_bound_ticks"], 0)
+
+    def test_resolve_bounds_mode_deprecated_alias(self):
+        ns = argparse.Namespace(bounds_mode="fractional_exact")
+        stderr = io.StringIO()
+        old = sys.stderr
+        try:
+            sys.stderr = stderr
+            _resolve_bounds_mode(ns)
+        finally:
+            sys.stderr = old
+        self.assertEqual(ns.bounds_mode, "fractional_odd_subset")
+        self.assertIn("deprecated", stderr.getvalue())
+
+    def test_resolve_bounds_mode_preserves_known(self):
+        for mode in ("auto", "fractional_odd_subset", "fractional_heuristic"):
+            ns = argparse.Namespace(bounds_mode=mode)
+            stderr = io.StringIO()
+            old = sys.stderr
+            try:
+                sys.stderr = stderr
+                _resolve_bounds_mode(ns)
+            finally:
+                sys.stderr = old
+            self.assertEqual(ns.bounds_mode, mode)
+            self.assertEqual(stderr.getvalue(), "")
+
+    def test_is_partial_bound_recognizes_partial_reasons(self):
+        self.assertTrue(_is_partial_bound(BoundsReason.AUTO_PARTIAL.value))
+        self.assertTrue(_is_partial_bound(BoundsReason.FRACTIONAL_HEURISTIC_PARTIAL.value))
+
+    def test_is_partial_bound_rejects_complete_reasons(self):
+        self.assertFalse(_is_partial_bound(BoundsReason.AUTO_EXHAUSTIVE.value))
+        self.assertFalse(_is_partial_bound(BoundsReason.FRACTIONAL_ODD_SUBSET.value))
+        self.assertFalse(_is_partial_bound(BoundsReason.READ1_WRITE1_COMPLETE.value))
+
+    def test_is_partial_bound_none(self):
+        self.assertFalse(_is_partial_bound(None))
 
 
 if __name__ == "__main__":

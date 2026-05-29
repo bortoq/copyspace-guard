@@ -287,8 +287,8 @@ def _visualization_block(summary: Dict[str, Any]) -> str:
 <section class="viz">
   <h2>Gap Visualization</h2>
   <svg viewBox="0 0 420 220" role="img" aria-label="ticks comparison">
-    <rect x="40" y="{190-cur_h}" width="90" height="{cur_h}" fill="#ff8f6b"><title>{current_label}: {cur.ticks_total} ticks</title></rect>
-    <rect x="165" y="{190-cand_h}" width="90" height="{cand_h}" fill="#67e8f9"><title>{candidate_label}: {cand.ticks_total} ticks</title></rect>
+    <rect x="40" y="{190-cur_h}" width="90" height="{cur_h}" fill="#ff8f6b"><title>{html.escape(current_label)}: {cur.ticks_total} ticks</title></rect>
+    <rect x="165" y="{190-cand_h}" width="90" height="{cand_h}" fill="#67e8f9"><title>{html.escape(candidate_label)}: {cand.ticks_total} ticks</title></rect>
     <rect x="290" y="{190-lb_h}" width="90" height="{lb_h}" fill="#86efac"><title>lower bound: {lb} ticks</title></rect>
     <text x="45" y="205" fill="#a8b3cf" font-size="12">{html.escape(current_label)}</text>
     <text x="170" y="205" fill="#a8b3cf" font-size="12">{html.escape(candidate_label)}</text>

@@ -1,3 +1,4 @@
+import argparse
 import json
 import csv
 import sys
@@ -8,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from copyspace_guard.cli import _load_roi_config_and_compute  # noqa: E402
 from copyspace_guard.core import (  # noqa: E402
     BOUNDS_REASON_AUTO_EXHAUSTIVE,
     BOUNDS_REASON_AUTO_PARTIAL,
@@ -31,7 +33,7 @@ from copyspace_guard.core import (  # noqa: E402
 from copyspace_guard.types import Report  # noqa: E402
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
 from copyspace_guard.io import csv_safe_cell, dump_json, iter_schedule_csv_ticks, load_config, load_json, read_demands_csv, write_schedule_csv  # noqa: E402
-from copyspace_guard.report import render_html, render_markdown, write_reports  # noqa: E402
+from copyspace_guard.report import _inline_html, render_html, render_markdown, write_reports  # noqa: E402
 from copyspace_guard.schema import validate_report_contract, validate_schedule_contract  # noqa: E402
 import tools.release_artifacts as release_artifacts  # noqa: E402
 
@@ -865,3 +867,51 @@ class ReportRenderingTests(unittest.TestCase):
         html = render_html(test_summary)
         self.assertNotIn("<script>", html)
         self.assertIn("&lt;script&gt;", html)
+
+    def test_inline_html_rejects_raw_angle_brackets(self):
+        with self.assertRaises(ValueError):
+            _inline_html("<script>")
+        with self.assertRaises(ValueError):
+            _inline_html("a < b")
+        _inline_html("safe `code` text")
+        _inline_html("no angle at all")
+
+    def test_load_roi_config_and_compute_works(self):
+        inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
+        rep = validate_schedule(inst, solve_greedy(inst))
+        ns = argparse.Namespace(roi=str(ROOT / "examples" / "roi.yml"), cost_per_tick=0.0)
+        comp, roi = _load_roi_config_and_compute(ns, rep, rep, kind="baseline_vs_greedy")
+        self.assertTrue(comp["comparable"])
+        self.assertEqual(roi["savings_kind"], "baseline_comparison")
+        self.assertGreater(roi["cost_per_tick"], 0)
+
+    def test_fractional_heuristic_report_bounds_mode_and_reason(self):
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 32,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
+        }
+        rep = validate_schedule(inst, solve_greedy(inst), strict1_bounds_mode="fractional_heuristic")
+        self.assertEqual(rep.bounds_mode, "fractional_heuristic")
+        self.assertEqual(rep.bounds_complete_reason, "fractional_heuristic_partial")
+        self.assertFalse(rep.bounds_complete)
+
+    def test_html_report_xss_table_cells_escaped(self):
+        test_summary = {
+            "instance": {"id": "safe", "model": "STRICT1", "slots": 4, "copy_bw_bits_per_tick": 256, "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 100}]},
+            "current_label": "<script>alert('cur')</script>",
+            "candidate_label": "greedy",
+            "reports": {
+                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
+                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
+            },
+            "comparison": {"comparable": True, "saved_ticks": 0, "saved_ticks_pct": 0.0, "gap_reduction_ticks": 0, "utilization_delta": 0.0},
+            "roi": {},
+            "artifacts": {},
+        }
+        html = render_html(test_summary)
+        self.assertNotIn("<script>", html)
+        self.assertIn("&lt;script&gt;", html)
+        self.assertIn("alert(&#x27;cur&#x27;)", html)
