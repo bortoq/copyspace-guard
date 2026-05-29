@@ -43,3 +43,10 @@ Still not modeled:
 - storage media contention;
 - object-store request limits;
 - path-level routing.
+
+## Lower-bound limitations
+
+- For > 20 slots (STRICT1, auto mode): `gap_to_lower_bound` is a lower estimate. The true optimum may be higher than reported.
+- `fractional_odd_subset` mode: exact but limited to ≤ 24 slots.
+- `fractional_heuristic` mode: deterministic heuristic, works at any scale, not exact.
+- Computing exact χ'(G) is NP-hard for general graphs (Holyer 1981).

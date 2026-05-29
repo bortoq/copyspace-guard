@@ -15,6 +15,7 @@ from copyspace_guard.core import (  # noqa: E402
     BOUNDS_REASON_FRACTIONAL_HEURISTIC_PARTIAL,
     BOUNDS_REASON_READ1_WRITE1_COMPLETE,
     MAX_EXHAUSTIVE_SUBSET_LIMIT,
+    compare_reports,
     compute_roi,
     exact_optimal_ticks,
     gate_report,
@@ -22,6 +23,7 @@ from copyspace_guard.core import (  # noqa: E402
     validate_artifact_contract,
     lower_bound_components,
     schedule_from_csv,
+    solve_baseline,
     solve_greedy,
     validate_schedule,
     validate_summary_contract,
@@ -106,6 +108,25 @@ class CoreTests(unittest.TestCase):
         roi = compute_roi({"comparable": True, "saved_ticks": 219}, {"tick_seconds": 1, "gpu_count_blocked": 64, "gpu_hour_cost_usd": 2.5, "runs_per_day": 12, "days_per_month": 30})
         self.assertAlmostEqual(roi["savings_per_run_usd"], 9.7333333333, places=6)
         self.assertAlmostEqual(roi["savings_per_year_usd"], 42048.0, places=2)
+
+    def test_ring15_saved_ticks(self):
+        inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
+        baseline = solve_baseline(inst)
+        greedy = solve_greedy(inst)
+        rep_b = validate_schedule(inst, baseline)
+        rep_g = validate_schedule(inst, greedy)
+        comp = compare_reports(rep_b, rep_g)
+        self.assertEqual(comp["saved_ticks"], 219)
+
+    def test_industry_demo_greedy_is_valid(self):
+        for name, bw, slots in [
+            ("gpt2_ddp_allreduce", 1073741824, 8),
+            ("kv_cache_disagg", 1073741824, 8),
+        ]:
+            inst = instance_from_csv(ROOT / "examples" / name / "demands.csv", bw=bw, slots=slots)
+            greedy = solve_greedy(inst)
+            rep = validate_schedule(inst, greedy)
+            self.assertEqual(rep.status, "PASS", f"{name} greedy should be valid")
 
 
 if __name__ == "__main__":

@@ -255,6 +255,21 @@ class CliTests(unittest.TestCase):
             self.assertEqual(data["0"], 0)
             self.assertEqual(data["3"], 3)
 
+    def test_validate_common_args_rejects_negative_values(self):
+        from copyspace_guard.cli import _validate_common_args
+        import argparse
+
+        ns = argparse.Namespace(max_errors=None, bounds_subset_limit=0)
+        _validate_common_args(ns)  # should not raise
+
+        ns = argparse.Namespace(max_errors=-1, bounds_subset_limit=0)
+        with self.assertRaisesRegex(ValueError, "--max-errors"):
+            _validate_common_args(ns)
+
+        ns = argparse.Namespace(max_errors=0, bounds_subset_limit=-5)
+        with self.assertRaisesRegex(ValueError, "--bounds-subset-limit"):
+            _validate_common_args(ns)
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -823,6 +838,8 @@ class IntegrationCliTests(unittest.TestCase):
                 "--outdir", str(out), check=False,
             )
             self.assertIn("customer_current", rc.stdout)
+            report = json.loads((out / "report_customer_current.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "FAIL")
 
     def test_infer_nccl_log_emits_runnable_command(self):
         with tempfile.TemporaryDirectory() as td:

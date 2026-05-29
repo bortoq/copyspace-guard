@@ -16,12 +16,16 @@
 - Local `doctor` command and `make pilot-check`.
 - Pilot readiness checklist.
 
-## v0.2 — Pilot hardening
+## ✅ v0.2 — Pilot hardening (released)
 
-- Cleaner grouped diagnostics in HTML reports.
-- More sales/regression examples from realistic traces.
-- Build/wheel and Docker release artifacts.
-- Case-study template and first public anonymized case study.
+- NCCL/PyTorch log importers (`import-nccl-log`, `import-pytorch-trace`, `infer`).
+- External solver plugin (`--solver-plugin`).
+- Practical/theoretical ROI split with `savings_kind`.
+- `bounds_complete_reason` with public `BoundsReason` enum.
+- `fractional_heuristic` bounds mode for scalable large-instance estimation.
+- Real-workload examples (GPT-2, LLaMA-3, KV-cache, Megatron).
+- `compare` command for side-by-side external schedule comparison.
+- Inline report visualizations (ticks bars + top loaded slots) without external dependencies.
 
 ## v0.3 — Model extensions
 

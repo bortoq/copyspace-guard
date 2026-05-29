@@ -34,6 +34,14 @@ In `analyze` with `customer_current`, the summary includes:
 
 For large-slot instances where lower bounds may be partial, this metric is often more stable for CI thresholding than `gap_to_lower_bound` alone.
 
+## `gap_practical` vs `gap_to_lower_bound`
+
+- `gap_practical`: `(customer_ticks - greedy_ticks) / customer_ticks` — reliable at any scale.
+- `gap_to_lower_bound`: distance to theoretical optimum — exact only when `bounds_complete=true`.
+
+Use `gap_practical` (via `--max-gap-vs-greedy`) as your primary CI threshold.
+Use `gap_to_lower_bound` as a secondary check for small instances (≤20 slots, `gap_reliability=exact`).
+
 ## Audit gate failure output
 
 When `--max-gap` and/or `--max-gap-vs-greedy` are provided and thresholds fail, `audit` exits with code `2` and prints:

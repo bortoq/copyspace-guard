@@ -143,7 +143,7 @@ else:
                 self.assertEqual(rep.gap_reliability, "exact")
 
         @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-        @given(instance_strategy(max_slots=30, max_demands=8, max_bits=4))
+        @given(instance_strategy(max_slots=50, max_demands=8, max_bits=4))
         def test_fractional_odd_subset_rejects_large_slots(self, inst: dict[str, Any]) -> None:
             assume(inst["model"] == "STRICT1")
             assume(int(inst["slots"]) > 24)

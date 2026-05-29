@@ -33,7 +33,7 @@ def _make_inst(
 class BoundsEdgeTests(unittest.TestCase):
     def test_slots_zero_raises(self):
         inst = _make_inst(slots=0, demands=[(0, 1, 100)])
-        with self.assertRaises((ValueError, ZeroDivisionError)):
+        with self.assertRaises(ValueError):
             lower_bound_components(inst)
 
     def test_slots_one_handled(self):

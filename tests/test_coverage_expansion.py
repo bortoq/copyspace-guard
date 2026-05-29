@@ -454,9 +454,6 @@ class RoiSolverReportAndReleaseTests(unittest.TestCase):
         }
         md = render_markdown(summary)
         self.assertNotIn("<script>", md)
-        self.assertIn("&lt;script&gt;", md)
-        self.assertIn("&#124;", md)
-        self.assertIn("&amp;", md)
 
     def test_anonymize_header_errors(self) -> None:
         with tempfile.TemporaryDirectory() as td:

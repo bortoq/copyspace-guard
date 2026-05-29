@@ -24,7 +24,43 @@ This package is intentionally small and easy to run locally:
 
 > Give the tool one transfer trace or demand matrix. It shows whether the plan is valid, how much work is wasted, and what gate can keep it from regressing.
 
+## Getting started
+
+**Have real NCCL/PyTorch logs?**
+→ [`copyspace-guard infer nccl_debug.log`](#infer-bandwidth-and-slot-count-from-logs)
+
+**Have an existing schedule to audit?**
+→ [`copyspace-guard audit`](#audit-only-no-baselinegreedy-run)
+
+**Just exploring?**
+→ [Run the bundled demo](#quickstart)
+
 ## Quickstart
+
+Run the bundled demo from a repository checkout:
+
+```bash
+copyspace-guard analyze \
+  --csv examples/ring15.csv \
+  --bw 256 \
+  --id ai-staging-ring15 \
+  --roi examples/roi.yml \
+  --outdir artifacts/demo
+```
+
+Open:
+
+- `artifacts/demo/report.html`
+- `artifacts/demo/report.md`
+- `artifacts/demo/summary.json`
+
+Expected terminal shape:
+
+```text
+baseline: status=PASS ticks=768 lb=549 gap=0.398907 util=0.7143
+greedy:   status=PASS ticks=549 lb=549 gap=0.000000 util=0.9992
+saved_ticks=219 estimated_savings=9.73
+```
 
 ## Primary CI Metric
 
@@ -58,33 +94,6 @@ copyspace-guard analyze \
   --current-schedule-csv your_schedule.csv \
   --outdir artifacts/audit
 ```
-
-No schedule yet? Run the bundled demo from a repository checkout:
-
-```bash
-copyspace-guard analyze \
-  --csv examples/ring15.csv \
-  --bw 256 \
-  --id ai-staging-ring15 \
-  --roi examples/roi.yml \
-  --outdir artifacts/demo
-```
-
-Open:
-
-- `artifacts/demo/report.html`
-- `artifacts/demo/report.md`
-- `artifacts/demo/summary.json`
-
-Expected terminal shape:
-
-```text
-baseline: status=PASS ticks=768 lb=549 gap=0.398907 util=0.7143
-greedy:   status=PASS ticks=549 lb=549 gap=0.000000 util=0.9992
-saved_ticks=219 estimated_savings=9.73
-```
-
-The exact numbers depend on the input CSV and bandwidth value.
 
 For local development from this repository, install editable mode with development tooling:
 
@@ -171,7 +180,7 @@ Common `analyze` options:
 --current-schedule-json your_schedule.json
 --summary-only
 --bounds-subset-limit 20
---bounds-mode auto  # or fractional_heuristic / fractional_exact
+--bounds-mode auto  # or fractional_heuristic / fractional_odd_subset
 --max-errors 100
 --max-demands 100000
 --max-slots 10000
@@ -197,7 +206,7 @@ Common `audit` options:
 --model STRICT1  # or READ1_WRITE1
 --schedule-json your_schedule.json
 --bounds-subset-limit 20
---bounds-mode auto  # or fractional_heuristic / fractional_exact
+--bounds-mode auto  # or fractional_heuristic / fractional_odd_subset
 --max-errors 100
 --max-output-ticks 1000000
 --max-gap 0.15
@@ -207,12 +216,12 @@ Common `audit` options:
 Note: `--max-gap-vs-greedy` runs deterministic `greedy` internally to compute the comparison metric.
 
 `--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
-`--bounds-mode fractional_exact` enables exact odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
+`--bounds-mode fractional_odd_subset` enables exact odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
 Bounds mode guidance:
 - `auto` (default): scalable heuristics and relaxations for large slot counts.
 - `fractional_heuristic`: explicit scalable odd-subset fractional heuristic mode for large slot counts.
-- `fractional_exact`: exact odd-subset fractional lower bound for STRICT1 with guard `slots <= 24`.
-- Use `fractional_exact` for higher-confidence small/medium runs; use `auto` for large production runs.
+- `fractional_odd_subset`: exact odd-subset fractional lower bound for STRICT1 with guard `slots <= 24` (alias `fractional_exact` still accepted with deprecation warning).
+- Use `fractional_odd_subset` for higher-confidence small/medium runs; use `auto` for large production runs.
 
 `report.json` also includes:
 - `bounds_mode`: the mode used for bound computation.
@@ -263,6 +272,18 @@ copyspace-guard audit \
   --solver-plugin my_solver.py \
   --outdir artifacts/audit
 ```
+
+The solver plugin receives `instance.json` on stdin and must write `schedule.json` to stdout:
+
+```python
+#!/usr/bin/env python3
+import json, sys
+inst = json.load(sys.stdin)        # Instance dict
+schedule = my_algorithm(inst)      # your solver
+json.dump(schedule, sys.stdout)    # Schedule: {"version":0, "model":"STRICT1", "ticks":[...]}
+```
+
+See `tests/test_cli.py` (`IntegrationCliTests.test_solver_plugin_works`) for a working end-to-end example.
 
 ### Compare two external schedules
 
@@ -392,7 +413,7 @@ For CI wiring examples, see [doc/CI_INTEGRATION.md](doc/CI_INTEGRATION.md).
 - `report.md` — human-readable audit report.
 - `report.html` — shareable report.
 
-## v0.2.4 boundaries
+## v0.2.5 boundaries
 
 Included:
 
@@ -400,12 +421,20 @@ Included:
 - deterministic baseline and greedy schedules;
 - first-class `audit` command for audit-only validation of external schedules;
 - external schedule importers: `import-msccl`, `import-taccl`, `import-csv --map ...`;
+- NCCL debug log and PyTorch profiler trace importers (`import-nccl-log`, `import-pytorch-trace`);
+- `infer` command for auto-detecting bandwidth and slot count from NCCL/PyTorch logs;
 - STRICT1 and READ1_WRITE1 validators;
+- solver plugin integration (`--solver-plugin`);
 - lower-bound gap and utilization metrics;
 - strengthened large-`STRICT1` lower bounds (heuristic subset density, fractional odd-subset, LP-core odd-subset pass);
 - external-audit interpretation fields (`audit_note`, `gap_vs_greedy`);
+- practical gap metric (`gap_practical` with `--max-gap-vs-greedy`) and practical/theoretical ROI split;
 - CI gate threshold for `gap_vs_greedy` via `--max-gap-vs-greedy`;
+- `bounds_complete_reason` with public `BoundsReason` enum;
+- `fractional_heuristic` bounds mode for scalable large-instance estimation;
 - ROI estimates via `roi.yml` or a simple `$ per tick` assumption;
+- real-workload examples (GPT-2 DDP, LLaMA-3, KV-cache disagg, Megatron TP AllReduce);
+- `compare` command for side-by-side external schedule comparison;
 - report artifacts;
 - PyPI publishing through GitHub Actions Trusted Publishing;
 - matrix CI for Python 3.10, 3.11 and 3.12;

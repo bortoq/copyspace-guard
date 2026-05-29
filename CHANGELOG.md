@@ -9,6 +9,9 @@ Highlights:
 
 - **H1**: Added `copyspace-guard infer` command that auto-detects bandwidth and
   slot count from NCCL debug logs and PyTorch profiler traces.
+- Added `copyspace-guard import-nccl-log` and `copyspace-guard import-pytorch-trace`
+  for importing real framework log data into demands CSV format.
+- Added `--solver-plugin` to `audit` for external solver integration via stdin/stdout JSON contract.
 - **H2**: Added `savings_kind` field to ROI output (`baseline_comparison` vs
   `customer_vs_greedy`).
 - **H3**: Renamed `fractional_exact` → `fractional_odd_subset` (backwards compat
