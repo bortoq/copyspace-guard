@@ -47,6 +47,12 @@ from .importers import (
 )
 
 
+def _resolve_bounds_mode(args: argparse.Namespace) -> None:
+    if args.bounds_mode == "fractional_exact":
+        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
+        args.bounds_mode = "fractional_odd_subset"
+
+
 def _check_bounds_mode_slots(inst: Instance, bounds_mode: str) -> None:
     if bounds_mode == "fractional_odd_subset" and str(inst.get("model", "STRICT1")) == "STRICT1":
         slots = int(inst.get("slots", 0))
@@ -86,9 +92,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = instance_from_csv(args.csv, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
-    if args.bounds_mode == "fractional_exact":
-        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
-        args.bounds_mode = "fractional_odd_subset"
+    _resolve_bounds_mode(args)
     if args.max_slots is not None and int(inst["slots"]) > args.max_slots:
         raise ValueError(f"slot count {inst['slots']} exceeds --max-slots {args.max_slots}")
     if args.max_demands is not None and len(inst.get("demands", [])) > args.max_demands:
@@ -234,9 +238,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
-    if args.bounds_mode == "fractional_exact":
-        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
-        args.bounds_mode = "fractional_odd_subset"
+    _resolve_bounds_mode(args)
     if args.schedule_json and args.schedule_csv:
         raise SystemExit("use only one of --schedule-json or --schedule-csv")
     if args.solver_plugin and (args.schedule_json or args.schedule_csv):
@@ -383,9 +385,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = instance_from_csv(args.demands, bw=args.bw, slots=args.slots, instance_id=args.id, notes=args.notes, model=args.model)
     _check_bounds_mode_slots(inst, args.bounds_mode)
-    if args.bounds_mode == "fractional_exact":
-        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
-        args.bounds_mode = "fractional_odd_subset"
+    _resolve_bounds_mode(args)
     sched_a = _load_schedule_auto(args.schedule_a, model=str(inst.get("model", "STRICT1")))
     sched_b = _load_schedule_auto(args.schedule_b, model=str(inst.get("model", "STRICT1")))
     rep_a = validate_schedule(
@@ -464,9 +464,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     _validate_common_args(args)
     inst = load_json(args.instance)
     _check_bounds_mode_slots(inst, args.bounds_mode)
-    if args.bounds_mode == "fractional_exact":
-        print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
-        args.bounds_mode = "fractional_odd_subset"
+    _resolve_bounds_mode(args)
     sched = load_json(args.schedule)
     rep = validate_schedule(
         inst,

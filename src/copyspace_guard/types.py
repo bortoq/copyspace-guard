@@ -38,8 +38,8 @@ class _InstanceRequired(TypedDict):
 class Instance(_InstanceRequired, total=False):
     id: str | None
     notes: str | None
-    max_demands: int | None
-    max_slots: int | None
+    # NOTE: max_demands/max_slots are CLI-level guardrails handled in cmd_analyze,
+    # not stored in the Instance dict.
 
 
 @dataclass(frozen=True)
