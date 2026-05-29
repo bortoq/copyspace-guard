@@ -7,9 +7,9 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** checks data-movement plans from metadata only. It validates schedules, measures how far they are from a lower bound, and flags regressions with a CI gate. Current release: **v0.2.5** on PyPI. Status: production-oriented pilot.
+**Copy-Space Guard** tells you how much time your GPU cluster wastes waiting for data transfers — without touching model weights or actual data. Give it a schedule or an NCCL log; it returns pass/fail validation, how far from optimal your plan is, and estimated savings.
 
-Give it a transfer matrix like `src_slot,dst_slot,bits_total`, or a real schedule log. It returns pass/fail validation, gap to lower bound, utilization, and estimated savings.
+Current release: **v0.2.6** on PyPI. Status: production-oriented pilot.
 
 This package is intentionally small and easy to run locally:
 
@@ -26,14 +26,24 @@ This package is intentionally small and easy to run locally:
 
 ## Getting started
 
-**Have real NCCL/PyTorch logs?**
-→ [`copyspace-guard infer nccl_debug.log`](#infer-bandwidth-and-slot-count-from-logs)
+**Have real NCCL/PyTorch logs?** Best place to start.
+→ [`copyspace-guard infer nccl_debug.log`](#infer-bandwidth-and-slot-count-from-logs) — extracts slots, bandwidth, and demands in one command.
+
+```text
+$ copyspace-guard infer nccl_debug.log
+inferred: slots=3 bw=8589934592 bits (= max transfer size; use actual NIC bandwidth if known)
+run: copyspace-guard import-nccl-log --log nccl_debug.log --out demands.csv --bw 8589934592 --slots 3
+```
 
 **Have an existing schedule to audit?**
 → [`copyspace-guard audit`](#commands)
 
 **Just exploring?**
 → [Run the bundled demo](#quickstart)
+
+### Key concepts in one sentence
+
+- **Slots** are your GPUs or nodes. **Ticks** are rounds of communication. **bw** is bits per tick per link. A schedule is valid if every slot sends/receives at most one message per tick, and all data arrives.
 
 ## Quickstart
 
@@ -412,6 +422,14 @@ For CI wiring examples, see [doc/CI_INTEGRATION.md](doc/CI_INTEGRATION.md).
 - `summary.json` — machine-readable comparison summary.
 - `report.md` — human-readable audit report.
 - `report.html` — shareable report.
+
+## v0.2.6 boundaries
+
+Updated v0.2.6 changes:
+
+- HTML report now shows `gap_reliability` (exact / lower estimate) in KPI cards and a warning badge when `bounds_complete=false`;
+- `bench-bounds` prints actionable recommendation by slot count;
+- 13 new tests added; 183 tests total.
 
 ## v0.2.5 boundaries
 
