@@ -5,13 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "copyspace-guard"
 version = "0.2.5"
-description = "Deterministic data-movement audit, validation and optimization reports"
+description = "Audit GPU cluster communication schedules. Works from NCCL logs — no model weights needed. Zero dependencies. CI-ready."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{name = "Dmitry Bortoq"}]
 maintainers = [{name = "Dmitry Bortoq"}]
 dependencies = []
+
+keywords = ["nccl", "collective-communication", "distributed-training", "mlsys", "gpu-cluster", "schedule-optimization"]
 
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -20,6 +22,9 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: System :: Benchmark",
   "Topic :: Software Development :: Quality Assurance",
+  "Topic :: System :: Distributed Computing",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
 ]
 
 [project.optional-dependencies]

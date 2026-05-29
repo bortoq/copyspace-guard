@@ -239,16 +239,28 @@ def _card_html(title: str, value: str, sub: str = "") -> str:
     return f"<div class='kpi'><div class='kpi-title'>{html.escape(title)}</div><div class='kpi-value'>{html.escape(value)}</div><div class='kpi-sub'>{html.escape(sub)}</div></div>"
 
 
+def _badge_block(summary: Dict[str, Any]) -> str:
+    _, _, _, cand = _labels(summary)
+    badges = ""
+    if getattr(cand, "gap_reliability", "exact") == "lower_estimate":
+        badges += '<div class="badge warn">⚠ gap_to_lower_bound is a lower estimate (bounds_complete=false). Use gap_vs_greedy for reliable CI thresholding.</div>'
+    if not badges:
+        badges = '<div class="badge">Metadata-only deterministic audit</div>'
+    return badges
+
+
 def executive_cards(summary: Dict[str, Any]) -> str:
     current_label, candidate_label, cur, cand = _labels(summary)
     comp = summary["comparison"]
     roi = summary.get("roi") or {}
+    gap_rel = str(cand.gap_reliability) if cand.gap_reliability else "unknown"
+    gap_sub = f"to deterministic lower bound ({gap_rel})"
     cards = [
         _card_html("Current ticks", f"{cur.ticks_total:,}", current_label),
         _card_html("Candidate ticks", f"{cand.ticks_total:,}", candidate_label),
         _card_html("Saved ticks", f"{comp.get('saved_ticks', 0):,}", pct(comp.get("saved_ticks_pct", 0))),
         _card_html("Utilization gain", pct(comp.get("utilization_delta", 0)), f"{pct(cur.utilization)} → {pct(cand.utilization)}"),
-        _card_html("Candidate gap", pct(cand.gap_to_lower_bound), "to deterministic lower bound"),
+        _card_html("Candidate gap", pct(cand.gap_to_lower_bound), gap_sub),
     ]
     if roi.get("savings_per_year_usd", 0) > 0:
         cards.append(_card_html("Annualized savings", money(roi.get("savings_per_year_usd", 0)), "ROI estimate"))
@@ -404,10 +416,11 @@ th {{ background:#1d2a52; color:#fff; }}
 td:nth-child(2), td:nth-child(3), th:nth-child(2), th:nth-child(3) {{ text-align:right; }}
 code {{ color:var(--good); background:#0c1428; padding:2px 6px; border-radius:6px; }}
 .badge {{ display:inline-block; padding:6px 10px; border:1px solid var(--accent); color:var(--accent); border-radius:999px; margin-bottom:16px; }}
+.badge.warn {{ border-color:var(--warn); color:var(--warn); }}
 @media(max-width:860px) {{ .kpis {{ grid-template-columns:1fr; }} h1 {{ font-size:34px; }} }}
 </style>
 </head>
-<body><main><div class="badge">Metadata-only deterministic audit</div>{executive_cards(summary)}{_visualization_block(summary)}<div class="card">
+<body><main>{_badge_block(summary)}{executive_cards(summary)}{_visualization_block(summary)}<div class="card">
 {''.join(body)}
 </div></main></body></html>
 """

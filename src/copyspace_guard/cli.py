@@ -893,6 +893,12 @@ def cmd_bench_bounds(args: argparse.Namespace) -> int:
     }
     dump_json(outdir / "bench_bounds.json", summary)
     print(f"bench-bounds elapsed={total_elapsed:.6f}s cases={len(cases)} failures={len(failures)}")
+    max_auto = max((c["slots"] for c in cases if c["bounds_complete"]), default=0)
+    min_partial = min((c["slots"] for c in cases if not c["bounds_complete"]), default=9999)
+    print(f"bench-bounds recommendation by slot count:", file=sys.stderr)
+    if max_auto >= args.min_slots:
+        print(f"  slots <= {max_auto}: --bounds-mode auto (exhaustive, exact)", file=sys.stderr)
+    print(f"  slots {min_partial}-{args.max_slots}: --bounds-mode fractional_heuristic (faster, estimated)", file=sys.stderr)
     if failures:
         for failure in failures:
             print(f"FAIL {failure}", file=sys.stderr)
