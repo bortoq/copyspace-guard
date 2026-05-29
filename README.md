@@ -9,7 +9,7 @@
 
 **Copy-Space Guard** tells you how much time your GPU cluster wastes waiting for data transfers — without touching model weights or actual data. Give it a schedule or an NCCL log; it returns pass/fail validation, how far from optimal your plan is, and estimated savings.
 
-Current release: **v0.2.6** on PyPI. Status: production-oriented pilot.
+Current release: **v0.2.6** on PyPI.
 
 This package is intentionally small and easy to run locally:
 
@@ -22,7 +22,7 @@ This package is intentionally small and easy to run locally:
 
 ## Overview
 
-> Give the tool one transfer trace or demand matrix. It shows whether the plan is valid, how much work is wasted, and what gate can keep it from regressing.
+> Give the tool your data-transfer plan or an NCCL log. It validates that transfers fit within slot bandwidth, shows how many ticks can be eliminated, and provides a CI gate to prevent regressions.
 
 ## Getting started
 
@@ -32,7 +32,7 @@ This package is intentionally small and easy to run locally:
 ```text
 $ copyspace-guard infer nccl_debug.log
 inferred: slots=3 bw=8589934592 bits (= max transfer size; use actual NIC bandwidth if known)
-run: copyspace-guard import-nccl-log --log nccl_debug.log --out demands.csv --bw 8589934592 --slots 3
+run: copyspace-guard import-nccl-log nccl_debug.log --out demands.csv --bw 8589934592 --slots 3
 ```
 
 **Have an existing schedule to audit?**

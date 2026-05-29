@@ -589,7 +589,7 @@ def cmd_infer(args: argparse.Namespace) -> int:
     if demands_path:
         print(f"run: copyspace-guard audit --demands {demands_path} --bw {bw} --slots {slots} --schedule schedule.csv")
     else:
-        print(f"run: copyspace-guard import-nccl-log --log {path} --out demands.csv --bw {bw} --slots {slots}")
+        print(f"run: copyspace-guard import-nccl-log {path} --out demands.csv --bw {bw} --slots {slots}")
     return 0
 
 
