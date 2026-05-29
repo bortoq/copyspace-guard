@@ -28,9 +28,10 @@ def _md_code(text: Any) -> str:
 
 
 def _inline_html(text: str) -> str:
-    escaped = html.escape(text)
-    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
-    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", escaped)
+    # Text is already HTML-safe from _md_escape / _md_code.
+    # Only handle inline markers.
+    result = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", result)
 
 
 def _labels(summary: Dict[str, Any]) -> Tuple[str, str, Report, Report]:
@@ -336,7 +337,7 @@ def render_html(summary: Dict[str, Any]) -> str:
             if not in_table:
                 in_table = True
                 tag = "th"
-            table_rows.append("<tr>" + "".join(f"<{tag}>{html.escape(c)}</{tag}>" for c in cells) + "</tr>")
+            table_rows.append("<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in cells) + "</tr>")
             continue
         flush_table()
         if line.startswith("# "):

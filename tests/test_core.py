@@ -864,4 +864,4 @@ class ReportRenderingTests(unittest.TestCase):
         }
         html = render_html(test_summary)
         self.assertNotIn("<script>", html)
-        self.assertIn("&amp;lt;script&amp;gt;", html)
+        self.assertIn("&lt;script&gt;", html)

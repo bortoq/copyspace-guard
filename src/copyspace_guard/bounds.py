@@ -252,14 +252,14 @@ def _strict1_bounds(
                 wc[j][i] += c
         if core_size >= 3:
             internal = _compute_internal_edge_sums(wc)
-            lp_lb = 0
+            mask_frac_lb = 0
             for mask in range(1, 1 << core_size):
                 k = mask.bit_count()
                 if k < 3 or (k % 2 == 0):
                     continue
-                lp_lb = math.ceil((2 * internal[mask]) / (k - 1)) if internal[mask] else 0
-                if lp_lb > density_lb:
-                    density_lb = lp_lb
+                mask_frac_lb = math.ceil((2 * internal[mask]) / (k - 1)) if internal[mask] else 0
+                if mask_frac_lb > density_lb:
+                    density_lb = mask_frac_lb
                     witness = {
                         "kind": "lp_relaxation_core_odd_subset",
                         "subset": [core_nodes[i] for i in range(core_size) if mask & (1 << i)],

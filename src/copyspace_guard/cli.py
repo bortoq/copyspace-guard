@@ -1016,6 +1016,23 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_instance_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
+    p.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
+    p.add_argument("--id", default=None)
+    p.add_argument("--notes", default=None)
+
+
+def _add_bounds_args(p: argparse.ArgumentParser, *, include_exact: bool = True) -> None:
+    choices = ["auto", "fractional_heuristic", "fractional_odd_subset"]
+    if include_exact:
+        choices.append("fractional_exact")
+    p.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
+    p.add_argument("--bounds-mode", choices=choices, default="auto", help="STRICT1 lower-bound mode")
+    p.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
+    p.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="copyspace-guard", description="Deterministic data-movement audit and CI gate")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -1024,40 +1041,28 @@ def build_parser() -> argparse.ArgumentParser:
     a = sub.add_parser("analyze", help="run current/baseline vs deterministic candidate analysis from demands CSV")
     a.add_argument("--csv", required=True, help="CSV with src_slot,dst_slot,bits_total")
     a.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
-    a.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
-    a.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
-    a.add_argument("--id", default="demo-workload")
-    a.add_argument("--notes", default=None)
+    _add_instance_args(a)
     a.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
     a.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
     a.add_argument("--current-schedule-json", default=None, help="optional customer/current schedule JSON")
     a.add_argument("--current-schedule-csv", default=None, help="optional customer/current schedule CSV: tick,src_slot,dst_slot,len_bits")
     a.add_argument("--summary-only", action="store_true", help="do not write full schedule JSON/CSV artifacts")
-    a.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    a.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
-    a.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
+    _add_bounds_args(a)
     a.add_argument("--max-demands", type=int, default=None, help="fail if normalized demand count exceeds this limit")
     a.add_argument("--max-slots", type=int, default=None, help="fail if slot count exceeds this limit")
-    a.add_argument("--max-output-ticks", type=int, default=None, help="fail if any compared report exceeds this tick count")
     a.add_argument("--outdir", default="artifacts/analysis")
     a.set_defaults(func=cmd_analyze)
 
     au = sub.add_parser("audit", help="audit one provided schedule against demands without baseline/greedy solving")
     au.add_argument("--demands", required=True, help="CSV with src_slot,dst_slot,bits_total")
     au.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
-    au.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
-    au.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
-    au.add_argument("--id", default="audit-workload")
-    au.add_argument("--notes", default=None)
+    _add_instance_args(au)
     au.add_argument("--schedule-json", default=None, help="customer schedule JSON")
     au.add_argument("--schedule-csv", "--schedule", dest="schedule_csv", default=None, help="customer schedule CSV: tick,src_slot,dst_slot,len_bits")
     au.add_argument("--solver-plugin", default=None, help="external solver plugin path (reads instance JSON from stdin, writes schedule JSON to stdout)")
     au.add_argument("--solver-plugin-timeout", type=float, default=300.0, help="timeout in seconds for --solver-plugin")
     au.add_argument("--solver-plugin-max-output-bytes", type=int, default=8_000_000, help="max stdout bytes accepted from --solver-plugin")
-    au.add_argument("--bounds-subset-limit", type=int, default=20, help="STRICT1 exhaustive subset-density bound slot limit")
-    au.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
-    au.add_argument("--max-errors", type=int, default=None, help="maximum validation errors stored in reports")
-    au.add_argument("--max-output-ticks", type=int, default=None, help="fail if report exceeds this tick count")
+    _add_bounds_args(au)
     au.add_argument("--max-gap", type=float, default=None, help="optional CI threshold for gap_to_lower_bound")
     au.add_argument("--max-gap-vs-greedy", type=float, default=None, help="optional CI threshold for (current_ticks-greedy_ticks)/current_ticks")
     au.add_argument("--outdir", default="artifacts/audit")
@@ -1068,16 +1073,10 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--bw", type=int, required=True, help="copy bandwidth per tick in bits")
     c.add_argument("--schedule-a", required=True, help="schedule A path (.json or .csv)")
     c.add_argument("--schedule-b", required=True, help="schedule B path (.json or .csv)")
-    c.add_argument("--model", choices=["STRICT1", "READ1_WRITE1"], default="STRICT1", help="resource model")
-    c.add_argument("--slots", type=int, default=None, help="slot count; inferred if omitted")
-    c.add_argument("--id", default="compare-workload")
-    c.add_argument("--notes", default=None)
+    _add_instance_args(c)
     c.add_argument("--cost-per-tick", type=float, default=0.0, help="optional business estimate in dollars per saved tick")
     c.add_argument("--roi", default=None, help="optional ROI config JSON/YAML")
-    c.add_argument("--bounds-subset-limit", type=int, default=20)
-    c.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset", "fractional_exact"], default="auto", help="STRICT1 lower-bound mode")
-    c.add_argument("--max-errors", type=int, default=None)
-    c.add_argument("--max-output-ticks", type=int, default=None)
+    _add_bounds_args(c)
     c.add_argument("--outdir", default="artifacts/compare")
     c.set_defaults(func=cmd_compare)
 
@@ -1085,9 +1084,7 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("instance")
     v.add_argument("schedule")
     v.add_argument("--report")
-    v.add_argument("--bounds-subset-limit", type=int, default=20)
-    v.add_argument("--bounds-mode", choices=["auto", "fractional_heuristic", "fractional_odd_subset"], default="auto")
-    v.add_argument("--max-errors", type=int, default=None)
+    _add_bounds_args(v, include_exact=False)
     v.set_defaults(func=cmd_validate)
 
     r = sub.add_parser("report", help="regenerate markdown/html reports from summary.json")

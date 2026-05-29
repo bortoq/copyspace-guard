@@ -178,6 +178,17 @@ def import_nccl_log_demands(
     max_rows: int | None = None,
     max_file_size: int | None = None,
 ) -> tuple[list[tuple[int, int, int]], dict[str, Any]]:
+    """Parse NCCL debug log and return (rows, meta).
+
+    Returns:
+        rows: list of (src_slot, dst_slot, bits_total) tuples.
+        meta: dict with keys: slots, max_rank, max_bytes_per_transfer,
+              unique_pairs, and optionally throughput_estimate_gbps.
+
+    Note: return type changed from list to tuple[list, dict] in v0.2.5.
+    Callers that used ``rows = import_nccl_log_demands(...)`` must update to
+    ``rows, meta = import_nccl_log_demands(...)``.
+    """
     _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
     p_transfer = re.compile(r"rank\s+(\d+)\s*->\s*rank\s+(\d+).*?\bbytes\s*=\s*(\d+)", re.IGNORECASE)
     p_throughput = re.compile(r"throughput.*?(\d+(?:\.\d+)?)\s*(?:gb|gbps)", re.IGNORECASE)
@@ -229,6 +240,15 @@ def import_pytorch_trace_demands(
     max_rows: int | None = None,
     max_file_size: int | None = None,
 ) -> tuple[list[tuple[int, int, int]], dict[str, Any]]:
+    """Parse PyTorch profiler trace JSON and return (rows, meta).
+
+    Returns:
+        rows: list of (src_slot, dst_slot, bits_total) tuples.
+        meta: dict with keys: slots, max_rank, max_bytes_per_transfer,
+              unique_pairs.
+
+    Note: return type changed from list to tuple[list, dict] in v0.2.5.
+    """
     _check_import_limits(path, max_rows=max_rows, max_file_size=max_file_size)
     with open(path, "r", encoding="utf-8") as f:
         obj = json.load(f)

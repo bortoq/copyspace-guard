@@ -4,8 +4,14 @@ from typing import Any, Dict, Iterable, List, Tuple, cast
 
 from .bounds import DEFAULT_EXHAUSTIVE_SUBSET_LIMIT
 from .bounds import lower_bound_components
+from .bounds_reason import BoundsReason
 from .io import demand_map, iter_schedule_csv_ticks, validate_instance
 from .types import Chunk, Instance, MODEL, READ1_WRITE1, Report, Schedule
+
+
+def _is_partial_bound(reason: str | None) -> bool:
+    partial = {BoundsReason.AUTO_PARTIAL, BoundsReason.FRACTIONAL_HEURISTIC_PARTIAL}
+    return reason in {r.value for r in partial}
 
 
 def fail_report(kind: str, msg: str, **ctx: Any) -> Report:
