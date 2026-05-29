@@ -48,6 +48,7 @@ from .importers import (
 
 
 def _resolve_bounds_mode(args: argparse.Namespace) -> None:
+    """Normalize deprecated --bounds-mode values. Mutates args.bounds_mode in place."""
     if args.bounds_mode == "fractional_exact":
         print("WARNING: --bounds-mode fractional_exact is deprecated, use fractional_odd_subset", file=sys.stderr)
         args.bounds_mode = "fractional_odd_subset"

@@ -30,7 +30,8 @@ def _md_code(text: Any) -> str:
 def _inline_html(text: str) -> str:
     # NOTE: text must already be HTML-safe (passed through _md_escape/_md_code).
     # Do NOT call with raw user input.
-    assert "<" not in text, "_inline_html requires HTML-safe text (no raw HTML tags)"
+    if "<" in text:
+        raise ValueError("_inline_html requires HTML-safe text (no raw HTML tags)")
     result = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
     return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", result)
 
