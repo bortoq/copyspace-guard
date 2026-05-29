@@ -30,14 +30,23 @@ This package is intentionally small and easy to run locally:
 → [`copyspace-guard infer nccl_debug.log`](#infer-bandwidth-and-slot-count-from-logs)
 
 **Have an existing schedule to audit?**
-→ [`copyspace-guard audit`](#audit-only-no-baselinegreedy-run)
+→ [`copyspace-guard audit`](#commands)
 
 **Just exploring?**
 → [Run the bundled demo](#quickstart)
 
 ## Quickstart
 
-Run the bundled demo from a repository checkout:
+Install from PyPI:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install copyspace-guard
+copyspace-guard --version
+```
+
+Run the bundled demo:
 
 ```bash
 copyspace-guard analyze \
@@ -75,15 +84,6 @@ copyspace-guard audit \
 ```
 
 For small STRICT1 instances (exhaustive bound path), `--max-gap` is also exact and useful as a secondary check.
-
-Install from PyPI:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install copyspace-guard
-copyspace-guard --version
-```
 
 If you already have a schedule from your solver:
 
@@ -624,6 +624,23 @@ copyspace-guard analyze   --csv examples/demo_conflict_demands.csv   --bw 256   
 
 Large workloads can use `--summary-only` to avoid writing full schedule JSON/CSV artifacts. In this mode generated baseline/candidate schedules are streamed into the validator instead of materialized in memory. Customer schedule CSVs used in streaming mode must be sorted by non-decreasing `tick`.
 
+
+## FAQ / Common mistakes
+
+**Q: `copyspace-guard` shows utilization=8% — is that bad?**
+A: Not necessarily. Low utilization means the schedule has idle slots, which is expected for sparse demand matrices. Focus on `gap_to_lower_bound` or `gap_vs_greedy` instead.
+
+**Q: My saved_ticks=0 — is the tool broken?**
+A: No. `saved_ticks` compares your current schedule vs a greedy candidate. If you didn't provide a `naive_schedule.csv` or your own schedule via `--current-schedule-csv`, no comparison is possible.
+
+**Q: I get `gap_to_lower_bound=0` — is my schedule optimal?**
+A: Only if `bounds_complete=true` in the report. For large STRICT1 instances, `gap_to_lower_bound` may be a lower estimate; prefer `gap_vs_greedy` as your primary CI metric.
+
+**Q: What `--bw` value should I use?**
+A: Bandwidth in bits per tick. NVLink ≈ 50 Gbps per link. InfiniBand HDR ≈ 12.5 Gbps per lane. Use the per-link bandwidth of your target system. Units are bits, not bytes — a 25 GB/s link is `--bw 200000000000`.
+
+**Q: Can I use this with NCCL/MSCCL/TACCL schedules?**
+A: Yes. Use the `import-*` commands to convert external formats into `copyspace-guard` JSON, then `audit` with `--schedule-json`.
 
 ## Model and bound details
 

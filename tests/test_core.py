@@ -110,6 +110,9 @@ class CoreTests(unittest.TestCase):
         self.assertAlmostEqual(roi["savings_per_year_usd"], 42048.0, places=2)
 
     def test_ring15_saved_ticks(self):
+        # ring15 with bw=256: 15 nodes in a ring, each edge = 65536 bits
+        # baseline = 768 ticks (serial), greedy = 549 ticks (parallel matchings)
+        # saved_ticks = 768 - 549 = 219
         inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
         baseline = solve_baseline(inst)
         greedy = solve_greedy(inst)
@@ -119,9 +122,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(comp["saved_ticks"], 219)
 
     def test_industry_demo_greedy_is_valid(self):
+        # bw values match the documented --bw in README Industry demos section
         for name, bw, slots in [
-            ("gpt2_ddp_allreduce", 1073741824, 8),
-            ("kv_cache_disagg", 1073741824, 8),
+            ("gpt2_ddp_allreduce", 25_000_000_000, 8),
+            ("kv_cache_disagg", 50_000_000_000, 8),
         ]:
             inst = instance_from_csv(ROOT / "examples" / name / "demands.csv", bw=bw, slots=slots)
             greedy = solve_greedy(inst)
