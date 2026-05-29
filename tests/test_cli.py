@@ -21,7 +21,7 @@ class CliTests(unittest.TestCase):
         rc = run_cli("--version")
         self.assertEqual(rc.returncode, 0)
         self.assertIn("copyspace-guard", rc.stdout)
-        self.assertIn("0.2.5", rc.stdout)
+        self.assertIn("0.2.6", rc.stdout)
 
     def test_doctor_command(self):
         rc = run_cli("doctor", "--root", str(ROOT))

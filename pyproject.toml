@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "copyspace-guard"
-version = "0.2.5"
+version = "0.2.6"
 description = "Audit GPU cluster communication schedules. Works from NCCL logs — no model weights needed. Zero dependencies. CI-ready."
 readme = "README.md"
 requires-python = ">=3.10"
