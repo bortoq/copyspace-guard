@@ -306,6 +306,22 @@ class CliTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "--bounds-subset-limit"):
             _validate_common_args(ns)
 
+    def test_load_schedule_auto_json_and_csv(self):
+        from copyspace_guard.cli import _load_schedule_auto
+        with tempfile.TemporaryDirectory() as td:
+            json_path = Path(td) / "sched.json"
+            json_path.write_text(json.dumps({
+                "version": 0, "model": "STRICT1",
+                "ticks": [[{"src_slot": 0, "dst_slot": 1, "len_bits": 8}]],
+            }), encoding="utf-8")
+            sched = _load_schedule_auto(str(json_path), model="STRICT1")
+            self.assertEqual(sched["version"], 0)
+
+            csv_path = Path(td) / "sched.csv"
+            csv_path.write_text("tick,src_slot,dst_slot,len_bits\n0,0,1,8\n", encoding="utf-8")
+            sched2 = _load_schedule_auto(str(csv_path), model="STRICT1")
+            self.assertEqual(sched2["version"], 0)
+
     def test_schedule_csv_to_json_smoke(self):
         with tempfile.TemporaryDirectory() as td:
             csv = Path(td) / "simple.csv"
@@ -925,6 +941,7 @@ class IntegrationCliTests(unittest.TestCase):
                 "--outdir", str(Path(td) / "out"), check=False,
             )
             self.assertNotEqual(rc.returncode, 0)
+            self.assertIn("timed out", rc.stderr.lower())
 
     def test_solver_plugin_max_output_bytes_rejected(self):
         with tempfile.TemporaryDirectory() as td:

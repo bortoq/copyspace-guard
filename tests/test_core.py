@@ -878,12 +878,14 @@ class ReportRenderingTests(unittest.TestCase):
 
     def test_load_roi_config_and_compute_works(self):
         inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
-        rep = validate_schedule(inst, solve_greedy(inst))
+        rep_baseline = validate_schedule(inst, solve_baseline(inst))
+        rep_greedy = validate_schedule(inst, solve_greedy(inst))
         ns = argparse.Namespace(roi=str(ROOT / "examples" / "roi.yml"), cost_per_tick=0.0)
-        comp, roi = _load_roi_config_and_compute(ns, rep, rep, kind="baseline_vs_greedy")
+        comp, roi = _load_roi_config_and_compute(ns, rep_baseline, rep_greedy, kind="baseline_vs_greedy")
         self.assertTrue(comp["comparable"])
         self.assertEqual(roi["savings_kind"], "baseline_comparison")
         self.assertGreater(roi["cost_per_tick"], 0)
+        self.assertEqual(comp["saved_ticks"], rep_baseline.ticks_total - rep_greedy.ticks_total)
 
     def test_fractional_heuristic_report_bounds_mode_and_reason(self):
         inst = {
