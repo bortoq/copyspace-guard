@@ -29,9 +29,17 @@ if st is None:
             pass
 else:
     @st.composite
-    def instance_strategy(draw: Any, *, max_slots: int = 5, max_demands: int = 6, max_bits: int = 4) -> dict[str, Any]:
-        slots = draw(st.integers(min_value=2, max_value=max_slots))
-        model = draw(st.sampled_from(["STRICT1", "READ1_WRITE1"]))
+    def instance_strategy(
+        draw: Any,
+        *,
+        min_slots: int = 2,
+        max_slots: int = 5,
+        max_demands: int = 6,
+        max_bits: int = 4,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        slots = draw(st.integers(min_value=min_slots, max_value=max_slots))
+        model_value = model if model is not None else draw(st.sampled_from(["STRICT1", "READ1_WRITE1"]))
         bw = draw(st.integers(min_value=1, max_value=max_bits))
         demand_count = draw(st.integers(min_value=1, max_value=max_demands))
         demands: list[dict[str, int]] = []
@@ -44,7 +52,7 @@ else:
             demands.append({"src_slot": src, "dst_slot": dst, "bits_total": bits})
         return {
             "version": 0,
-            "model": model,
+            "model": model_value,
             "slots": slots,
             "copy_bw_bits_per_tick": bw,
             "demands": demands,
@@ -52,6 +60,12 @@ else:
 
 
     class PropertyTests(unittest.TestCase):
+        @settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+        @given(instance_strategy(min_slots=25, max_slots=40, model="STRICT1"))
+        def test_instance_strategy_can_target_large_strict1_instances(self, inst: dict[str, Any]) -> None:
+            self.assertEqual(inst["model"], "STRICT1")
+            self.assertGreaterEqual(int(inst["slots"]), 25)
+
         @settings(max_examples=75, deadline=None, suppress_health_check=[HealthCheck.too_slow])
         @given(instance_strategy())
         def test_greedy_schedule_valid_for_generated_instances(self, inst: dict[str, Any]) -> None:
@@ -72,19 +86,15 @@ else:
             self.assertLessEqual(opt, rep.ticks_total)
 
         @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-        @given(instance_strategy(max_slots=40, max_demands=20, max_bits=8))
+        @given(instance_strategy(min_slots=25, max_slots=40, max_demands=20, max_bits=8, model="STRICT1"))
         def test_large_strict1_lower_bound_not_above_greedy(self, inst: dict[str, Any]) -> None:
-            assume(int(inst["slots"]) > 24)
-            assume(inst["model"] == "STRICT1")
             rep = validate_schedule(inst, solve_greedy(inst))
             lbs = lower_bound_components(inst)
             self.assertLessEqual(lbs["lower_bound_ticks"], rep.ticks_total)
 
         @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-        @given(instance_strategy(max_slots=50, max_demands=20, max_bits=8))
+        @given(instance_strategy(min_slots=25, max_slots=50, max_demands=20, max_bits=8, model="STRICT1"))
         def test_bounds_witness_deterministic(self, inst: dict[str, Any]) -> None:
-            assume(int(inst["slots"]) > 24)
-            assume(inst["model"] == "STRICT1")
             lbs1 = lower_bound_components(inst)
             lbs2 = lower_bound_components(inst)
             self.assertEqual(lbs1["lower_bound_witness"], lbs2["lower_bound_witness"])

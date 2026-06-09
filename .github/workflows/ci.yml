@@ -88,7 +88,11 @@ jobs:
       - name: Static security scan
         run: python -m bandit -q -r src tools
       - name: Dependency vulnerability scan
-        run: python -m pip_audit --progress-spinner off
+        run: |
+          python -m venv /tmp/csg-audit
+          /tmp/csg-audit/bin/python -m pip install --upgrade pip
+          /tmp/csg-audit/bin/python -m pip install -e ".[dev]"
+          /tmp/csg-audit/bin/python -m pip_audit --progress-spinner off
 
   docker:
     runs-on: ubuntu-latest
