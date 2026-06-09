@@ -174,6 +174,14 @@ class IoCsvEdgeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "bad CSV row"):
                 read_demands_csv(bad_plain)
 
+            commented = root / "commented.csv"
+            commented.write_text("src_slot,dst_slot,bits_total\n # comment with leading space\n0,1,1\n", encoding="utf-8")
+            self.assertEqual(read_demands_csv(commented), [(0, 1, 1)])
+
+            commented_commas = root / "commented_commas.csv"
+            commented_commas.write_text("src_slot,dst_slot,bits_total\n# comment,with,commas\n0,1,1\n", encoding="utf-8")
+            self.assertEqual(read_demands_csv(commented_commas), [(0, 1, 1)])
+
             good = root / "good.csv"
             good.write_text("src_slot,dst_slot,bits_total\n0,1,1\n", encoding="utf-8")
             for kwargs, msg in [
@@ -250,6 +258,19 @@ class IoCsvEdgeTests(unittest.TestCase):
             self.assertEqual(list(iter_schedule_csv_ticks(p, fill_empty_ticks=False)), [[{"src_slot": 0, "dst_slot": 1, "len_bits": 1}]])
             with self.assertRaisesRegex(ValueError, "unsupported model"):
                 schedule_from_csv(p, model="BAD")
+
+            commented_schedule = root / "commented_schedule.csv"
+            commented_schedule.write_text(
+                "tick,src_slot,dst_slot,len_bits\n"
+                " # comment with leading space\n"
+                "# comment,with,commas,too\n"
+                "0,0,1,1\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                list(iter_schedule_csv_ticks(commented_schedule)),
+                [[{"src_slot": 0, "dst_slot": 1, "len_bits": 1}]],
+            )
 
 
 class ValidatorAndSchemaEdgeTests(unittest.TestCase):
