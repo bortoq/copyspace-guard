@@ -9,12 +9,6 @@ from .types import Chunk, Demand, Instance, MODEL, MODELS, Schedule
 
 SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
-
-def _is_header_row(row: List[str], required: set[str]) -> bool:
-    fields = {str(x).strip().lstrip("\ufeff") for x in row}
-    return required.issubset(fields)
-
-
 def csv_safe_cell(value: Any) -> Any:
     """Return a spreadsheet-safe CSV cell value.
 
@@ -42,7 +36,7 @@ def dump_json(path: str | Path, obj: Any) -> None:
 
 def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
     rows: List[Tuple[int, int, int]] = []
-    with open(path, "r", encoding="utf-8", newline="") as f:
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
         rdr = csv.reader(f)
         first_row: List[str] | None = None
         first_lineno = 0
@@ -54,10 +48,10 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
             break
         if first_row is None:
             raise ValueError("no demands found in CSV")
-
-        required = {"src_slot", "dst_slot", "bits_total"}
-        if _is_header_row(first_row, required):
-            fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
+        
+        fieldnames = ["src_slot", "dst_slot", "bits_total"]
+        is_header_row = first_row == fieldnames
+        if is_header_row:
             dict_rows = csv.DictReader(f, fieldnames=fieldnames)
             for i, dict_row in enumerate(dict_rows, start=first_lineno + 1):
                 if not dict_row or all((v is None or v.startswith("#") or str(v).strip() == "") for v in dict_row.values()):
@@ -167,7 +161,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
     current_tick: int | None = None
     current_chunks: List[Chunk] = []
     last_tick = -1
-    with open(path, "r", encoding="utf-8", newline="") as f:
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
         rdr = csv.reader(f)
         first_row: List[str] | None = None
         first_lineno = 0
@@ -179,10 +173,10 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
             break
         if first_row is None:
             raise ValueError("no schedule rows found in CSV")
-
-        required = {"tick", "src_slot", "dst_slot", "len_bits"}
-        if _is_header_row(first_row, required):
-            fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
+        
+        fieldnames = ["tick", "src_slot", "dst_slot", "len_bits"]
+        is_header_row = first_row == fieldnames
+        if is_header_row:
             iterator = csv.DictReader(f, fieldnames=fieldnames)
             any_rows = False
             for i, dict_row in enumerate(iterator, start=first_lineno + 1):
