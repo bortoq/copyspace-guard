@@ -1,12 +1,8 @@
-
-
-
-# 1 blah, blah blah
-# 2 blah, blah blah
-
-    
-src_slot,dst_slot,bits_total
 # two connected rings
+# blah, blah, blah 
+
+src_slot,dst_slot,bits_total
+
 # ring 1
 0,1,65536
 1,2,65536
@@ -23,7 +19,7 @@ src_slot,dst_slot,bits_total
 12,13,65536
 13,14,65536
 14,0,65536
-www, eee, rrr
+
 # ring 2
 100,101,65536
 101,102,65536
