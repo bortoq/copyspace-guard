@@ -65,7 +65,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
                 try:
                     rows.append((int(dict_row["src_slot"]), int(dict_row["dst_slot"]), int(dict_row["bits_total"])))
                 except Exception as e:
-                    raise ValueError(f"bad CSV row {i}: expected src_slot,dst_slot,bits_total integers") from e
+                    raise ValueError(f"bad CSV row {i}: {dict_row} : expected src_slot,dst_slot,bits_total integers") from e
         else:
             pending_rows = [(first_lineno, first_row)]
             pending_rows.extend(enumerate(rdr, start=first_lineno + 1))
@@ -73,11 +73,11 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
                 if not list_row or all(x.startswith("#") or not x.strip() for x in list_row):
                     continue
                 if len(list_row) < 3:
-                    raise ValueError(f"bad CSV row {i}: expected 3 columns")
+                    raise ValueError(f"bad CSV row {i}: {list_row}: expected 3 columns")
                 try:
                     rows.append((int(list_row[0]), int(list_row[1]), int(list_row[2])))
                 except Exception as e:
-                    raise ValueError(f"bad CSV row {i}: expected src_slot,dst_slot,bits_total integers") from e
+                    raise ValueError(f"bad CSV row {i}: {list_row}: expected src_slot,dst_slot,bits_total integers") from e
     if not rows:
         raise ValueError("no demands found in CSV")
     return rows
