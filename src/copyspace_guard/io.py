@@ -47,7 +47,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
         first_row: List[str] | None = None
         first_lineno = 0
         for i, row in enumerate(rdr, start=1):
-            if not row or all(not x.strip() for x in row):
+            if not row or row[0].startswith("#") or all(not x.strip() for x in row):
                 continue
             first_row = row
             first_lineno = i
@@ -60,7 +60,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
             fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
             dict_rows = csv.DictReader(f, fieldnames=fieldnames)
             for i, dict_row in enumerate(dict_rows, start=first_lineno + 1):
-                if not dict_row or all((v is None or str(v).strip() == "") for v in dict_row.values()):
+                if not dict_row or all((v is None or v.startswith("#") or str(v).strip() == "") for v in dict_row.values()):
                     continue
                 try:
                     rows.append((int(dict_row["src_slot"]), int(dict_row["dst_slot"]), int(dict_row["bits_total"])))
@@ -70,7 +70,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
             pending_rows = [(first_lineno, first_row)]
             pending_rows.extend(enumerate(rdr, start=first_lineno + 1))
             for i, list_row in pending_rows:
-                if not list_row or all(not x.strip() for x in list_row):
+                if not list_row or all(x.startswith("#") or not x.strip() for x in list_row):
                     continue
                 if len(list_row) < 3:
                     raise ValueError(f"bad CSV row {i}: expected 3 columns")
