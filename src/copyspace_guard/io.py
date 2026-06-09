@@ -15,6 +15,23 @@ def _is_header_row(row: List[str], required: set[str]) -> bool:
     return required.issubset(fields)
 
 
+def _csv_cell_text(value: Any) -> str:
+    return "" if value is None else str(value).strip()
+
+
+def _is_blank_row(cells: List[Any]) -> bool:
+    return all(_csv_cell_text(cell) == "" for cell in cells)
+
+
+def _is_comment_row(cells: List[Any]) -> bool:
+    for cell in cells:
+        text = _csv_cell_text(cell)
+        if not text:
+            continue
+        return text.startswith("#")
+    return False
+
+
 def csv_safe_cell(value: Any) -> Any:
     """Return a spreadsheet-safe CSV cell value.
 
@@ -47,7 +64,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
         first_row: List[str] | None = None
         first_lineno = 0
         for i, row in enumerate(rdr, start=1):
-            if not row or row[0].startswith("#") or all(not x.strip() for x in row):
+            if not row or _is_comment_row(row) or _is_blank_row(row):
                 continue
             first_row = row
             first_lineno = i
@@ -60,7 +77,8 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
             fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
             dict_rows = csv.DictReader(f, fieldnames=fieldnames)
             for i, dict_row in enumerate(dict_rows, start=first_lineno + 1):
-                if not dict_row or all((v is None or v.startswith("#") or str(v).strip() == "") for v in dict_row.values()):
+                values = list(dict_row.values()) if dict_row else []
+                if not dict_row or _is_comment_row(values) or _is_blank_row(values):
                     continue
                 try:
                     rows.append((int(dict_row["src_slot"]), int(dict_row["dst_slot"]), int(dict_row["bits_total"])))
@@ -70,7 +88,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
             pending_rows = [(first_lineno, first_row)]
             pending_rows.extend(enumerate(rdr, start=first_lineno + 1))
             for i, list_row in pending_rows:
-                if not list_row or all(x.startswith("#") or not x.strip() for x in list_row):
+                if not list_row or _is_comment_row(list_row) or _is_blank_row(list_row):
                     continue
                 if len(list_row) < 3:
                     raise ValueError(f"bad CSV row {i}: {list_row}: expected 3 columns")
@@ -172,7 +190,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
         first_row: List[str] | None = None
         first_lineno = 0
         for i, row in enumerate(rdr, start=1):
-            if not row or all(not x.strip() for x in row):
+            if not row or _is_comment_row(row) or _is_blank_row(row):
                 continue
             first_row = row
             first_lineno = i
@@ -186,7 +204,8 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
             iterator = csv.DictReader(f, fieldnames=fieldnames)
             any_rows = False
             for i, dict_row in enumerate(iterator, start=first_lineno + 1):
-                if not dict_row:
+                values = list(dict_row.values()) if dict_row else []
+                if not dict_row or _is_comment_row(values) or _is_blank_row(values):
                     continue
                 try:
                     ti = int(dict_row["tick"])
@@ -217,7 +236,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
             rows.extend(enumerate(rdr, start=first_lineno + 1))
             any_rows = False
             for i, list_row in rows:
-                if not list_row:
+                if not list_row or _is_comment_row(list_row) or _is_blank_row(list_row):
                     continue
                 if len(list_row) < 4:
                     raise ValueError(f"bad schedule CSV row {i}: expected 4 columns")
