@@ -11,7 +11,7 @@ SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 
 def _is_header_row(row: List[str], required: set[str]) -> bool:
-    fields = {str(x).strip().lstrip("\ufeff") for x in row}
+    fields = {str(x).lstrip("\ufeff").strip() for x in row}
     return required.issubset(fields)
 
 
@@ -59,6 +59,7 @@ def dump_json(path: str | Path, obj: Any) -> None:
 
 def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
     rows: List[Tuple[int, int, int]] = []
+    #TODO:? utf-8-sig
     with open(path, "r", encoding="utf-8", newline="") as f:
         rdr = csv.reader(f)
         first_row: List[str] | None = None
@@ -74,7 +75,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
 
         required = {"src_slot", "dst_slot", "bits_total"}
         if _is_header_row(first_row, required):
-            fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
+            fieldnames = [x.lstrip("\ufeff").strip() for x in first_row]
             dict_rows = csv.DictReader(f, fieldnames=fieldnames)
             for i, dict_row in enumerate(dict_rows, start=first_lineno + 1):
                 values = list(dict_row.values()) if dict_row else []
@@ -85,7 +86,7 @@ def read_demands_csv(path: str | Path) -> List[Tuple[int, int, int]]:
                 except Exception as e:
                     raise ValueError(f"bad CSV row {i}: {dict_row} : expected src_slot,dst_slot,bits_total integers") from e
         else:
-            pending_rows = [(first_lineno, first_row)]
+            pending_rows = [(first_lineno, [x.lstrip("\ufeff") for x in first_row])]
             pending_rows.extend(enumerate(rdr, start=first_lineno + 1))
             for i, list_row in pending_rows:
                 if not list_row or _is_comment_row(list_row) or _is_blank_row(list_row):
@@ -200,7 +201,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
 
         required = {"tick", "src_slot", "dst_slot", "len_bits"}
         if _is_header_row(first_row, required):
-            fieldnames = [x.strip().lstrip("\ufeff") for x in first_row]
+            fieldnames = [x.lstrip("\ufeff").strip() for x in first_row]
             iterator = csv.DictReader(f, fieldnames=fieldnames)
             any_rows = False
             for i, dict_row in enumerate(iterator, start=first_lineno + 1):
@@ -232,7 +233,7 @@ def iter_schedule_csv_ticks(path: str | Path, *, fill_empty_ticks: bool = True) 
                 current_chunks.append(ch)
                 last_tick = ti
         else:
-            rows = [(first_lineno, first_row)]
+            rows = [(first_lineno, [x.lstrip("\ufeff") for x in first_row])]
             rows.extend(enumerate(rdr, start=first_lineno + 1))
             any_rows = False
             for i, list_row in rows:
