@@ -6,9 +6,18 @@ demo:
 test:
 	python -m ruff check --no-cache .
 	python -m mypy src
+ifeq ($(OS),Windows_NT)
+	set PYTHONPYCACHEPREFIX=/tmp/copyspace-guard-pycache 
+	python -m compileall -q src tests
+	set COVERAGE_FILE=/tmp/copyspace-guard.coverage 
+	python -m coverage run -m unittest discover -s tests -v
+	set COVERAGE_FILE=/tmp/copyspace-guard.coverage 
+	python -m coverage report --fail-under=80
+else
 	PYTHONPYCACHEPREFIX=/tmp/copyspace-guard-pycache python -m compileall -q src tests
 	COVERAGE_FILE=/tmp/copyspace-guard.coverage python -m coverage run -m unittest discover -s tests -v
 	COVERAGE_FILE=/tmp/copyspace-guard.coverage python -m coverage report --fail-under=80
+endif
 	copyspace-guard analyze --csv examples/ring15.csv --bw 256 --roi examples/roi.yml --summary-only --outdir /tmp/copyspace-guard-demo
 	copyspace-guard gate /tmp/copyspace-guard-demo/summary.json --config examples/copyspace_guard.yml
 
