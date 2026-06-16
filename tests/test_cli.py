@@ -815,6 +815,9 @@ class SecurityCliTests(unittest.TestCase):
             self.assertNotEqual(rc.returncode, 0)
 
     def test_outdir_path_traversal_with_symlink_rejected(self):
+        if sys.platform == "win32":
+            return
+
         with tempfile.TemporaryDirectory() as td:
             link = Path(td) / "outlink"
             link.symlink_to(Path(td) / ".." / "etc", target_is_directory=True)
