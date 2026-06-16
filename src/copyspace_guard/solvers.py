@@ -94,27 +94,26 @@ def iter_greedy(inst: Instance) -> Iterator[List[Chunk]]:
         used_src: set[int] = set()
         used_dst: set[int] = set()
         tick: List[Chunk] = []
-        chosen = [False] * len(pending)
-        chosen_len = [0] * len(pending)
+        
+        new_pending: List[Dict[str, int]] = []
         for i in order:
             s, t, rem = pending[i]["src_slot"], pending[i]["dst_slot"], pending[i]["rem_bits"]
             if not _can_use(model, used, used_src, used_dst, s, t):
+                new_pending.append(pending[i])
                 continue
+
             length = min(bw, rem)
             tick.append({"src_slot": s, "dst_slot": t, "len_bits": length})
-            chosen[i] = True
-            chosen_len[i] = length
             _mark_use(model, used, used_src, used_dst, s, t)
+            if rem - length > 0:
+                new_pending.append({"src_slot": s, "dst_slot": t, "rem_bits": rem - length})
+            else:
+                print(f"TODO: ready -> src_slot: {s}, dst_slot: {t}")
+                # tick.append({"src_slot": s, "dst_slot": t, "len_bits": 0})
+
         if not tick:
             raise RuntimeError("greedy solver made no progress")
-        new_pending: List[Dict[str, int]] = []
-        for i, item in enumerate(pending):
-            if chosen[i]:
-                rem2 = item["rem_bits"] - chosen_len[i]
-                if rem2 > 0:
-                    new_pending.append({"src_slot": item["src_slot"], "dst_slot": item["dst_slot"], "rem_bits": rem2})
-            else:
-                new_pending.append(item)
+        
         yield tick
         pending = new_pending
 
