@@ -107,9 +107,9 @@ def iter_greedy(inst: Instance) -> Iterator[List[Chunk]]:
             _mark_use(model, used, used_src, used_dst, s, t)
             if rem - length > 0:
                 new_pending.append({"src_slot": s, "dst_slot": t, "rem_bits": rem - length})
-            else:
-                print(f"TODO: ready -> src_slot: {s}, dst_slot: {t}")
-                # tick.append({"src_slot": s, "dst_slot": t, "len_bits": 0})
+
+            # TODO: ready -> src_slot: {s}, dst_slot: {t}
+            # tick.append({"src_slot": s, "dst_slot": t, "len_bits": 0})
 
         if not tick:
             raise RuntimeError("greedy solver made no progress")
