@@ -19,7 +19,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install
-        run: python -m pip install -e ".[dev]"
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade "setuptools>=77" build wheel
+          python -m pip install -e ".[dev]"
 
       - name: Release version guard
         if: startsWith(github.ref, 'refs/tags/')
@@ -81,7 +84,6 @@ jobs:
           cp dist/*.whl dist/*.tar.gz dist-pypi/
 
       - name: Publish package distributions to PyPI
-        continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-pypi

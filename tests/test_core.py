@@ -134,6 +134,18 @@ class CoreTests(unittest.TestCase):
             rep = validate_schedule(inst, greedy)
             self.assertEqual(rep.status, "PASS", f"{name} greedy should be valid")
 
+    def test_ring15_2_uses_dense_slot_numbering(self):
+        inst = instance_from_csv(ROOT / "examples" / "ring15_2.csv", bw=256)
+        self.assertEqual(inst["slots"], 30)
+        used_slots = {
+            int(demand["src_slot"])
+            for demand in inst["demands"]
+        } | {
+            int(demand["dst_slot"])
+            for demand in inst["demands"]
+        }
+        self.assertEqual(max(used_slots), 29)
+
 
 if __name__ == "__main__":
     unittest.main()

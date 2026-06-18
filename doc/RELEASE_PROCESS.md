@@ -31,7 +31,7 @@ git tag -a vX.Y.Z[-label] -m "Copy-Space Guard vX.Y.Z release"
 git push origin vX.Y.Z[-label]
 ```
 
-The GitHub release workflow runs `make release-check`, performs Docker smoke testing, uploads build artifacts, attaches the release artifacts to the GitHub release, and then publishes the wheel/sdist to PyPI through Trusted Publishing for tag builds.
+The GitHub release workflow runs `make release-check`, performs Docker smoke testing, uploads build artifacts, attaches the release artifacts to the GitHub release, and then publishes the wheel/sdist to PyPI through Trusted Publishing for tag builds. PyPI publish failures are not soft-failed; a broken publish keeps the release workflow red.
 
 The tag workflow also runs a release version guard. For tag `vX.Y.Z`, `pyproject.toml` and `src/copyspace_guard/__init__.py` must both contain version `X.Y.Z`; otherwise the release fails before publishing. Run the same check locally with:
 

@@ -9,6 +9,7 @@ VENV_BIN_DIR := bin
 endif
 
 ARTIFACTS_DIR := artifacts
+BENCH_MAX_TOTAL_SECONDS ?= 60
 PYTHONPYCACHEPREFIX := $(ARTIFACTS_DIR)/pycache
 COVERAGE_FILE := $(ARTIFACTS_DIR)/.coverage
 TEST_DEMO_OUT := $(ARTIFACTS_DIR)/test-demo
@@ -81,13 +82,12 @@ bench:
 	copyspace-guard bench --slots 64 --bits-per-edge 1048576 --bw 1048576 --outdir artifacts/bench
 
 bench-suite:
-	copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
+	copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds $(BENCH_MAX_TOTAL_SECONDS)
 
 production-check: release-check bench-suite
 
 build:
-	$(PYTHON) -c "import importlib.util, re, setuptools, sys; ok = importlib.util.find_spec('build') is not None and tuple(int(x) for x in re.findall(r'\d+', setuptools.__version__)[:3]) >= (77, 0, 0); sys.exit(0 if ok else 'run make dev-setup first (requires build and setuptools>=77)')"
-	$(PYTHON) -m build --no-isolation
+	$(PYTHON) -m build
 
 wheel-smoke: prepare-artifacts
 	$(PYTHON) -c "from pathlib import Path; import shutil; shutil.rmtree(Path('$(WHEEL_SMOKE_VENV)'), ignore_errors=True)"

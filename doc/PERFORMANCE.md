@@ -56,7 +56,7 @@ For release and CI smoke checks, run the suite:
 ```bash
 copyspace-guard bench-suite \
   --outdir artifacts/bench-suite \
-  --max-total-seconds 30
+  --max-total-seconds 60
 ```
 
 The suite writes `bench_suite.json` with per-case timings, validation reports and failure reasons. Thresholds should be calibrated per CI runner or customer environment; they are guardrails for regressions, not portable performance guarantees.

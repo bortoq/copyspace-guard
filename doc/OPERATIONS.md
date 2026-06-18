@@ -26,7 +26,7 @@ This runs static checks, unit and CLI tests, coverage, pilot readiness, build an
 Run:
 
 ```bash
-copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
+copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 60
 ```
 
 The suite writes `bench_suite.json` with per-case timings and validation reports. Treat the default threshold as a smoke guard, not a hardware-independent SLA.

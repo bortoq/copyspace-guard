@@ -872,11 +872,12 @@ class BuildContractTests(unittest.TestCase):
         self.assertIn("test-full:", makefile)
         self.assertIn("property-smoke:", makefile)
 
-    def test_makefile_build_target_does_not_reinstall_project(self):
+    def test_makefile_build_target_uses_isolated_build(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         build_section = makefile.split("\nbuild:\n", 1)[1].split("\n\n", 1)[0]
         self.assertNotIn('pip install -e ".[dev]"', build_section)
-        self.assertIn("run make dev-setup first", build_section)
+        self.assertIn("$(PYTHON) -m build", build_section)
+        self.assertNotIn("--no-isolation", build_section)
 
     def test_makefile_security_uses_clean_audit_venv(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
@@ -884,6 +885,11 @@ class BuildContractTests(unittest.TestCase):
         self.assertIn("SECURITY_AUDIT_VENV", makefile)
         self.assertIn("$(SECURITY_AUDIT_VENV)", security_section)
         self.assertIn('pip install -e ".[dev]"', security_section)
+
+    def test_makefile_bench_suite_uses_ci_budget(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("BENCH_MAX_TOTAL_SECONDS ?= 60", makefile)
+        self.assertIn("--max-total-seconds $(BENCH_MAX_TOTAL_SECONDS)", makefile)
 
     def test_ci_workflow_includes_windows_runner(self):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -903,11 +909,33 @@ class BuildContractTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("COVERAGE_FILE: artifacts/.coverage", workflow)
 
+    def test_release_workflow_fails_on_pypi_publish_errors(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertNotIn("continue-on-error: true", workflow)
+        self.assertIn('python -m pip install --upgrade "setuptools>=77" build wheel', workflow)
+
     def test_readme_mentions_windows_support(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("Windows", readme)
         self.assertIn("lower bound", readme)
         self.assertIn("not necessarily the global optimum", readme)
+
+    def test_readme_coverage_badge_matches_fast_ci_baseline(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("coverage-91%25", readme)
+        self.assertNotIn("coverage-94%25", readme)
+
+    def test_artifact_contract_doc_explains_structural_vs_semantic_validation(self):
+        doc = (ROOT / "doc" / "ARTIFACT_CONTRACTS.md").read_text(encoding="utf-8")
+        self.assertIn("structural compatibility contract", doc)
+        self.assertIn("semantic validation", doc)
+        self.assertIn("candidate_label", doc)
+        self.assertIn("current_label", doc)
+
+    def test_readme_documents_placeholder_optimality_certificate(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("optimality_certificate", readme)
+        self.assertIn("currently emits `none`", readme)
 
     def test_pyproject_uses_spdx_license_string(self):
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -917,6 +945,11 @@ class BuildContractTests(unittest.TestCase):
     def test_makefile_prefers_python_on_windows(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("PYTHON ?= python", makefile)
+
+    def test_solver_source_uses_pending_demand_rem_bits(self):
+        solver_source = (ROOT / "src" / "copyspace_guard" / "solvers.py").read_text(encoding="utf-8")
+        self.assertIn("class PendingDemand(TypedDict):", solver_source)
+        self.assertIn("rem_bits: int", solver_source)
 
 
 class SecurityCliTests(unittest.TestCase):

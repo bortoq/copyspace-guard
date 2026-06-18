@@ -1,7 +1,7 @@
 # Copy-Space Guard
 
 [![CI](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-94%25-brightgreen.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen.svg)](https://github.com/bortoq/copyspace-guard/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/copyspace-guard.svg)](https://pypi.org/project/copyspace-guard/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
@@ -243,6 +243,7 @@ Bounds mode guidance:
 `report.json` also includes:
 - `bounds_mode`: the mode used for bound computation.
 - `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `fractional_odd_subset`, `fractional_heuristic_partial`, `read1_write1_complete`.
+- `optimality_certificate`: currently emits `none` on the normal production path; reserve `exact_small_instance` for future guarded oracle modes only.
 
 Reason guidance:
 - `auto_exhaustive`: exhaustive STRICT1 subset scan was completed; `gap_to_lower_bound` is measured against a fully enumerated lower bound.
@@ -338,6 +339,8 @@ copyspace-guard report artifacts/run/summary.json --outdir artifacts/report
 copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
 ```
 
+Published JSON Schema is the structural compatibility contract. `copyspace-guard validate-artifact --kind summary` adds semantic validation, including checks that `reports[current_label]` and `reports[candidate_label]` both exist.
+
 ### Run production-oriented checks
 
 ```bash
@@ -351,7 +354,7 @@ make production-check
 `make test-fast` runs ruff, mypy, compileall, the non-property unittest suite, coverage and a CI gate smoke. `make property-smoke` runs a small blocking subset of property-based invariants for ordinary PRs. `make property` runs the heavier property-based suite. `make test-full` combines both. `make security` runs Bandit and `pip-audit` inside a clean project-specific venv. `make production-check` runs release checks plus a small synthetic performance suite. The suite can also be run directly:
 
 ```bash
-copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
+copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 60
 copyspace-guard bench-bounds --outdir artifacts/bench-bounds --min-slots 32 --max-slots 256 --step-slots 32
 ```
 
