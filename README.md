@@ -109,9 +109,16 @@ For local development from this repository, install editable mode with developme
 
 ```bash
 python -m pip install -e ".[dev]"
-make test
+make test-fast
+make test-full
 make security
 ```
+
+## Platform support
+
+- Linux is the primary development environment and runs the full CI matrix.
+- Windows has dedicated smoke coverage in CI for static checks, core tests, CLI flows, and path-security checks.
+- Some directory symlink tests depend on OS capabilities and are skipped only when the environment cannot create directory symlinks.
 
 ## Input format
 
@@ -334,12 +341,13 @@ copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
 ### Run production-oriented checks
 
 ```bash
-make test
+make test-fast
+make test-full
 make security
 make production-check
 ```
 
-`make test` runs ruff, mypy, compileall, unit/property/CLI tests, coverage and a CI gate smoke. `make security` runs Bandit over `src`/`tools` and `pip-audit` over the Python environment. `make production-check` runs release checks plus a small synthetic performance suite. The suite can also be run directly:
+`make test-fast` runs ruff, mypy, compileall, the non-property unittest suite, coverage and a CI gate smoke. `make property` runs the heavier property-based suite. `make test-full` combines both. `make security` runs Bandit over `src`/`tools` and `pip-audit` over the Python environment. `make production-check` runs release checks plus a small synthetic performance suite. The suite can also be run directly:
 
 ```bash
 copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30

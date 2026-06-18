@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=82.0.1"]
+requires = ["setuptools>=70.2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ version = "0.2.6"
 description = "Audit GPU cluster communication schedules. Works from NCCL logs — no model weights needed. Zero dependencies. CI-ready."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 authors = [{name = "Dmitry Bortoq"}]
 maintainers = [{name = "Dmitry Bortoq"}]
 dependencies = []
@@ -37,7 +37,7 @@ dev = [
   "mypy>=2.1.0",
   "pip-audit>=2.10.1",
   "ruff>=0.15.17",
-  "setuptools>=82.0.1",
+  "setuptools>=70.2.0",
   "twine>=6.2.0",
   "wheel>=0.47.0",
 ]

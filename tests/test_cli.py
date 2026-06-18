@@ -825,6 +825,37 @@ class BuildContractTests(unittest.TestCase):
     def test_symlink_capability_probe_returns_bool(self):
         self.assertIsInstance(can_create_directory_symlink(), bool)
 
+    def test_makefile_exposes_fast_and_full_test_targets(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("test-fast:", makefile)
+        self.assertIn("test-full:", makefile)
+
+    def test_makefile_build_target_does_not_reinstall_project(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        build_section = makefile.split("\nbuild:\n", 1)[1].split("\n\n", 1)[0]
+        self.assertNotIn('pip install -e ".[dev]"', build_section)
+
+    def test_ci_workflow_includes_windows_runner(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("windows-latest", workflow)
+
+    def test_ci_workflow_includes_optional_property_job(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("schedule:", workflow)
+        self.assertIn("property", workflow)
+
+    def test_ci_workflow_uses_make_wheel_smoke(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("make wheel-smoke", workflow)
+
+    def test_readme_mentions_windows_support(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Windows", readme)
+
+    def test_pyproject_uses_pep621_license_table(self):
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn('license = {text = "Apache-2.0"}', pyproject)
+
 
 class SecurityCliTests(unittest.TestCase):
     def test_outdir_path_traversal_rejected(self):
