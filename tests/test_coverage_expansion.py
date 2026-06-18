@@ -40,7 +40,7 @@ from copyspace_guard.core import (  # noqa: E402
 )
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
 from copyspace_guard.report import bounds_warning_section, metric_table, money, pct, render_html, render_markdown, roi_section  # noqa: E402
-from copyspace_guard.types import Chunk, Instance, Schedule  # noqa: E402
+from copyspace_guard.types import Instance, Schedule  # noqa: E402
 import tools.release_artifacts as release_artifacts  # noqa: E402
 
 
