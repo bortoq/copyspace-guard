@@ -848,6 +848,10 @@ class BuildContractTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("make wheel-smoke", workflow)
 
+    def test_ci_workflow_coverage_xml_step_uses_coverage_file_env(self):
+        workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("COVERAGE_FILE: artifacts/.coverage", workflow)
+
     def test_readme_mentions_windows_support(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("Windows", readme)
