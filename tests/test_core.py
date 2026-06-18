@@ -546,7 +546,7 @@ class SchemaFilesTests(unittest.TestCase):
 
     def test_generated_artifacts_validate_against_json_schemas_when_available(self):
         try:
-            from jsonschema import Draft202012Validator
+            from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
         except Exception:
             self.skipTest("jsonschema is not installed")
 

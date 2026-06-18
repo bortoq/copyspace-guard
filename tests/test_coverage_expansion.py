@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, cast
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,7 @@ from copyspace_guard.core import (  # noqa: E402
 )
 from copyspace_guard.anonymize import anonymize_demands_csv, anonymize_schedule_csv  # noqa: E402
 from copyspace_guard.report import bounds_warning_section, metric_table, money, pct, render_html, render_markdown, roi_section  # noqa: E402
+from copyspace_guard.types import Chunk, Instance, Schedule  # noqa: E402
 import tools.release_artifacts as release_artifacts  # noqa: E402
 
 
@@ -50,7 +52,7 @@ def run_main(args: list[str]) -> tuple[int, str, str]:
     return rc, out.getvalue(), err.getvalue()
 
 
-def tiny_instance(model: str = "STRICT1") -> dict:
+def tiny_instance(model: str = "STRICT1") -> Instance:
     return {
         "version": 0,
         "model": model,
@@ -184,13 +186,12 @@ class IoCsvEdgeTests(unittest.TestCase):
 
             good = root / "good.csv"
             good.write_text("src_slot,dst_slot,bits_total\n0,1,1\n", encoding="utf-8")
-            for kwargs, msg in [
-                ({"bw": 0}, "bandwidth"),
-                ({"bw": 1, "model": "NOPE"}, "unsupported model"),
-                ({"bw": 1, "slots": 0}, "slots"),
-            ]:
-                with self.assertRaisesRegex(ValueError, msg):
-                    instance_from_csv(good, **kwargs)
+            with self.assertRaisesRegex(ValueError, "bandwidth"):
+                instance_from_csv(good, bw=0)
+            with self.assertRaisesRegex(ValueError, "unsupported model"):
+                instance_from_csv(good, bw=1, model="NOPE")
+            with self.assertRaisesRegex(ValueError, "slots"):
+                instance_from_csv(good, bw=1, slots=0)
 
             for text, msg in [
                 ("src_slot,dst_slot,bits_total\n0,3,1\n", "out of bounds"),
@@ -286,20 +287,20 @@ class ValidatorAndSchemaEdgeTests(unittest.TestCase):
             self.assertEqual(rep.status, "FAIL")
             self.assertIn(msg, rep.errors[0]["msg"])
 
-        rep = validate_ticks_iter(inst, ["not-list", [object(), {"src_slot": "x"}]])  # type: ignore[list-item]
+        rep = validate_ticks_iter(inst, cast(Any, ["not-list", [object(), {"src_slot": "x"}]]))
         self.assertEqual(rep.status, "FAIL")
         self.assertGreaterEqual(rep.total_errors, 3)
         self.assertTrue({"STRUCT", "COVERAGE"}.issubset({e["kind"] for e in rep.errors}))
 
     def test_validate_schedule_all_error_kinds(self) -> None:
-        inst = {
+        inst: Instance = {
             "version": 0,
             "model": "READ1_WRITE1",
             "slots": 3,
             "copy_bw_bits_per_tick": 2,
             "demands": [{"src_slot": 0, "dst_slot": 1, "bits_total": 1}],
         }
-        sched = {
+        sched: Schedule = {
             "version": 0,
             "model": "READ1_WRITE1",
             "ticks": [[
@@ -324,7 +325,7 @@ class ValidatorAndSchemaEdgeTests(unittest.TestCase):
             rep = validate_schedule_csv(tiny_instance(), str(p), fill_empty_ticks=False)
             self.assertEqual(rep.status, "FAIL")
             bad_inst = {"version": 1}
-            self.assertEqual(validate_ticks_iter(bad_inst, []).errors[0]["kind"], "INSTANCE")  # type: ignore[arg-type]
+            self.assertEqual(validate_ticks_iter(cast(Any, bad_inst), []).errors[0]["kind"], "INSTANCE")
 
     def test_schema_contract_negative_cases(self) -> None:
         with self.assertRaisesRegex(ValueError, "schedule must be an object"):
@@ -408,7 +409,7 @@ class RoiSolverReportAndReleaseTests(unittest.TestCase):
         self.assertEqual(validate_schedule(rw, {"version": 0, "model": "READ1_WRITE1", "ticks": greedy_ticks}).status, "PASS")
         with self.assertRaisesRegex(ValueError, "at most"):
             exact_optimal_ticks(inst, max_chunks=1)
-        empty = {**inst, "demands": []}
+        empty = cast(Instance, {**inst, "demands": []})
         self.assertEqual(exact_optimal_ticks(empty), 0)
 
     def test_report_helper_branches(self) -> None:
@@ -478,7 +479,7 @@ class RoiSolverReportAndReleaseTests(unittest.TestCase):
         self.assertNotIn("<script>", md)
 
     def test_gap_reliability_does_not_claim_exact_optimum(self) -> None:
-        inst = {
+        inst: Instance = {
             "version": 0,
             "model": "STRICT1",
             "slots": 4,

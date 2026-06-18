@@ -118,7 +118,7 @@ class CliTests(unittest.TestCase):
 
     def test_audit_summary_validates_against_published_json_schema(self):
         try:
-            from jsonschema import Draft202012Validator
+            from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
         except Exception:
             self.skipTest("jsonschema is not installed")
 
@@ -138,7 +138,7 @@ class CliTests(unittest.TestCase):
 
     def test_compare_summary_validates_against_published_json_schema(self):
         try:
-            from jsonschema import Draft202012Validator
+            from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
         except Exception:
             self.skipTest("jsonschema is not installed")
 
