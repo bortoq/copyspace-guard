@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
 
-**Copy-Space Guard** tells you how much time your GPU cluster wastes waiting for data transfers — without touching model weights or actual data. Give it a schedule or an NCCL log; it returns pass/fail validation, how far from optimal your plan is, and estimated savings.
+**Copy-Space Guard** tells you how much time your GPU cluster wastes waiting for data transfers — without touching model weights or actual data. Give it a schedule or an NCCL log; it returns pass/fail validation, gap-to-lower-bound and greedy-relative comparisons, and estimated savings.
 
 Current release: **v0.2.6** on PyPI.
 
@@ -93,7 +93,7 @@ copyspace-guard audit \
   --max-gap-vs-greedy 0.15
 ```
 
-For small STRICT1 instances (exhaustive bound path), `--max-gap` is also exact and useful as a secondary check.
+For small STRICT1 instances (fully enumerated lower-bound path), `--max-gap` is also useful as a secondary check.
 
 If you already have a schedule from your solver:
 
@@ -165,7 +165,7 @@ It does not model:
 - runtime latency/jitter;
 - multi-NIC/multi-queue behavior.
 
-For large STRICT1 slot counts, `gap_to_lower_bound` can be a lower estimate only.
+For large STRICT1 slot counts, `gap_to_lower_bound` may be against a partial lower bound only.
 Use `gap_vs_greedy` as the primary CI metric in those cases.
 
 ## Commands
@@ -233,21 +233,21 @@ Common `audit` options:
 Note: `--max-gap-vs-greedy` runs deterministic `greedy` internally to compute the comparison metric.
 
 `--bounds-subset-limit` controls exhaustive STRICT1 subset-density enumeration and is protected by a hard cap to avoid accidental exponential runs.
-`--bounds-mode fractional_odd_subset` enables exact odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
+`--bounds-mode fractional_odd_subset` enables fully enumerated odd-subset fractional lower bounds for STRICT1 on smaller slot counts (guarded by an internal slot limit).
 Bounds mode guidance:
 - `auto` (default): scalable heuristics and relaxations for large slot counts.
 - `fractional_heuristic`: explicit scalable odd-subset fractional heuristic mode for large slot counts.
-- `fractional_odd_subset`: exact odd-subset fractional lower bound for STRICT1 with guard `slots <= 24` (alias `fractional_exact` still accepted with deprecation warning).
+- `fractional_odd_subset`: fully enumerated odd-subset fractional lower bound for STRICT1 with guard `slots <= 24` (alias `fractional_exact` still accepted with deprecation warning).
 - Use `fractional_odd_subset` for higher-confidence small/medium runs; use `auto` for large production runs.
 
 `report.json` also includes:
 - `bounds_mode`: the mode used for bound computation.
-- `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `exact_fractional_mode`, `fractional_heuristic_partial`, `read1_write1_complete`.
+- `bounds_complete_reason`: one of `auto_exhaustive`, `auto_partial`, `fractional_odd_subset`, `fractional_heuristic_partial`, `read1_write1_complete`.
 
 Reason guidance:
-- `auto_exhaustive`: exhaustive STRICT1 subset scan was completed; `gap_to_lower_bound` is reliable for gating.
-- `auto_partial`: scalable STRICT1 heuristics were used; treat `gap_to_lower_bound` as lower estimate and prefer `--max-gap-vs-greedy`.
-- `exact_fractional_mode`: exact odd-subset fractional mode was used (guarded slot limit); for `slots <= 24` it matches exhaustive `auto` lower-bound quality.
+- `auto_exhaustive`: exhaustive STRICT1 subset scan was completed; `gap_to_lower_bound` is measured against a fully enumerated lower bound.
+- `auto_partial`: scalable STRICT1 heuristics were used; treat `gap_to_lower_bound` as a partial-lower-bound metric and prefer `--max-gap-vs-greedy`.
+- `fractional_odd_subset`: fully enumerated odd-subset fractional mode was used (guarded slot limit); this is still a lower bound, not necessarily the global optimum.
 - `read1_write1_complete`: READ1_WRITE1 bound path is complete for the current model.
 
 ### Import external schedule formats
@@ -343,11 +343,12 @@ copyspace-guard validate-artifact --kind summary artifacts/run/summary.json
 ```bash
 make test-fast
 make test-full
+make property-smoke
 make security
 make production-check
 ```
 
-`make test-fast` runs ruff, mypy, compileall, the non-property unittest suite, coverage and a CI gate smoke. `make property` runs the heavier property-based suite. `make test-full` combines both. `make security` runs Bandit over `src`/`tools` and `pip-audit` over the Python environment. `make production-check` runs release checks plus a small synthetic performance suite. The suite can also be run directly:
+`make test-fast` runs ruff, mypy, compileall, the non-property unittest suite, coverage and a CI gate smoke. `make property-smoke` runs a small blocking subset of property-based invariants for ordinary PRs. `make property` runs the heavier property-based suite. `make test-full` combines both. `make security` runs Bandit and `pip-audit` inside a clean project-specific venv. `make production-check` runs release checks plus a small synthetic performance suite. The suite can also be run directly:
 
 ```bash
 copyspace-guard bench-suite --outdir artifacts/bench-suite --max-total-seconds 30
@@ -435,7 +436,7 @@ For CI wiring examples, see [doc/CI_INTEGRATION.md](doc/CI_INTEGRATION.md).
 
 Updated v0.2.6 changes:
 
-- HTML report now shows `gap_reliability` (exact / lower estimate) in KPI cards and a warning badge when `bounds_complete=false`;
+- HTML report now shows whether `gap_to_lower_bound` is measured against a fully enumerated or partial lower bound, and a warning badge when `bounds_complete=false`;
 - `bench-bounds` prints actionable recommendation by slot count;
 - 13 new tests added; 183 tests total.
 
@@ -482,6 +483,7 @@ Known operational caveats:
 - Full artifact mode can produce large schedule JSON/CSV files; use `--summary-only` for large pilots and CI.
 - For large STRICT1 slot counts, subset-density lower bounds may be partial; check `bounds_complete` in reports.
 - The greedy schedule is deterministic and useful for comparison, but it is not a proof of global optimality.
+- A fully enumerated lower bound is stronger than a partial lower bound, but still not necessarily the global optimum unless an explicit optimality certificate is present.
 - Demand and schedule core fields are parsed as integers. Pass-through text columns in anonymized CSV outputs are prefixed with a single quote when they begin with spreadsheet formula trigger characters (`=`, `+`, `-`, `@`, tab or carriage return).
 
 ## How this maps to the larger project set
@@ -574,8 +576,8 @@ copyspace-guard analyze --csv examples/gpt2_ddp_allreduce/demands.csv \
   --roi examples/gpt2_ddp_allreduce/roi.yml \
   --outdir artifacts/gpt2-ddp
 
-# LLaMA-3 70B checkpoint: star broadcast audit (gap=0 proves optimality under STRICT1)
-# saved_ticks=0 — star pattern is irreducible; use READ1_WRITE1 for tree broadcast
+# LLaMA-3 70B checkpoint: star broadcast audit (`gap_to_lower_bound=0` matches the implemented lower bound under STRICT1)
+# saved_ticks=0 — star pattern is strong under this model; use READ1_WRITE1 for tree broadcast
 copyspace-guard analyze --csv examples/llama3_70b_checkpoint/demands.csv \
   --bw 400000000000 --model STRICT1 \
   --roi examples/llama3_70b_checkpoint/roi.yml \
@@ -660,7 +662,7 @@ A: Not necessarily. Low utilization means the schedule has idle slots, which is 
 A: No. `saved_ticks` compares your current schedule vs a greedy candidate. If you didn't provide a `naive_schedule.csv` or your own schedule via `--current-schedule-csv`, no comparison is possible.
 
 **Q: I get `gap_to_lower_bound=0` — is my schedule optimal?**
-A: Only if `bounds_complete=true` in the report. For large STRICT1 instances, `gap_to_lower_bound` may be a lower estimate; prefer `gap_vs_greedy` as your primary CI metric.
+A: No. `bounds_complete=true` only means the currently implemented lower-bound family was fully enumerated. That still does not guarantee a proof of global optimality. For large STRICT1 instances, `gap_to_lower_bound` may also be against a partial lower bound; prefer `gap_vs_greedy` as your primary CI metric.
 
 **Q: What `--bw` value should I use?**
 A: Bandwidth in bits per tick. NVLink ≈ 50 Gbps per link. InfiniBand HDR ≈ 12.5 Gbps per lane. Use the per-link bandwidth of your target system. Units are bits, not bytes — a 25 GB/s link is `--bw 200000000000`.

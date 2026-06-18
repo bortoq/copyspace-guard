@@ -61,6 +61,8 @@ class Report:
     gap_ticks: int = 0
     gap_to_lower_bound: float = 0.0
     gap_reliability: str | None = None
+    lower_bound_enumeration: str | None = None
+    optimality_certificate: str | None = None
     gap_practical: float | None = None
     lower_bound_witness: Dict[str, Any] = field(default_factory=dict)
     bounds_complete: bool = True

@@ -421,6 +421,7 @@ class RoiSolverReportAndReleaseTests(unittest.TestCase):
             ticks_total=1,
             gap_to_lower_bound=0.0,
             utilization=0.5,
+            gap_reliability="lower_bound_partial",
             total_errors=1,
             errors_truncated=True,
         )
@@ -475,6 +476,23 @@ class RoiSolverReportAndReleaseTests(unittest.TestCase):
         }
         md = render_markdown(summary)
         self.assertNotIn("<script>", md)
+
+    def test_gap_reliability_does_not_claim_exact_optimum(self) -> None:
+        inst = {
+            "version": 0,
+            "model": "STRICT1",
+            "slots": 4,
+            "copy_bw_bits_per_tick": 1,
+            "demands": [
+                {"src_slot": 0, "dst_slot": 1, "bits_total": 1},
+                {"src_slot": 0, "dst_slot": 2, "bits_total": 1},
+                {"src_slot": 1, "dst_slot": 3, "bits_total": 1},
+                {"src_slot": 2, "dst_slot": 3, "bits_total": 1},
+            ],
+        }
+        rep = validate_schedule(inst, solve_greedy(inst))
+        self.assertTrue(rep.bounds_complete)
+        self.assertEqual(rep.gap_reliability, "lower_bound_complete")
 
     def test_anonymize_header_errors(self) -> None:
         with tempfile.TemporaryDirectory() as td:

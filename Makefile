@@ -1,6 +1,13 @@
-.PHONY: demo test test-fast test-full property security release-guard bump-version pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench bench-suite production-check dev-setup prepare-artifacts
+.PHONY: demo test test-fast test-full property property-smoke security release-guard bump-version pilot-check wheel-smoke release-artifacts release-check clean docker-build build bench bench-suite production-check dev-setup prepare-artifacts
 
+ifeq ($(OS),Windows_NT)
+PYTHON ?= python
+VENV_BIN_DIR := Scripts
+else
 PYTHON ?= python3
+VENV_BIN_DIR := bin
+endif
+
 ARTIFACTS_DIR := artifacts
 PYTHONPYCACHEPREFIX := $(ARTIFACTS_DIR)/pycache
 COVERAGE_FILE := $(ARTIFACTS_DIR)/.coverage
@@ -8,17 +15,17 @@ TEST_DEMO_OUT := $(ARTIFACTS_DIR)/test-demo
 PILOT_OUT := $(ARTIFACTS_DIR)/pilot
 WHEEL_SMOKE_VENV := $(ARTIFACTS_DIR)/wheel-smoke-venv
 WHEEL_SMOKE_OUT := $(WHEEL_SMOKE_VENV)/out
+SECURITY_AUDIT_VENV := $(ARTIFACTS_DIR)/security-audit-venv
 FAST_TEST_MODULES := tests.test_bounds_edge tests.test_cli tests.test_core tests.test_coverage_expansion tests.test_importers
+PROPERTY_SMOKE_TESTS := \
+	tests.test_property.PropertyTests.test_greedy_schedule_valid_for_generated_instances \
+	tests.test_property.PropertyTests.test_exact_oracle_bounds_greedy_on_tiny_instances \
+	tests.test_property.PropertyTests.test_large_strict1_lower_bound_not_above_greedy
 export PYTHONPYCACHEPREFIX
 export COVERAGE_FILE
 
-ifeq ($(OS),Windows_NT)
-VENV_BIN_DIR := Scripts
-else
-VENV_BIN_DIR := bin
-endif
-
 WHEEL_SMOKE_PYTHON := $(WHEEL_SMOKE_VENV)/$(VENV_BIN_DIR)/python
+SECURITY_AUDIT_PYTHON := $(SECURITY_AUDIT_VENV)/$(VENV_BIN_DIR)/python
 
 prepare-artifacts:
 	$(PYTHON) -c "from pathlib import Path; Path('$(ARTIFACTS_DIR)').mkdir(exist_ok=True)"
@@ -40,14 +47,21 @@ test-fast: prepare-artifacts
 property:
 	$(PYTHON) -m unittest tests.test_property -v
 
+property-smoke:
+	$(PYTHON) -m unittest $(PROPERTY_SMOKE_TESTS) -v
+
 test-full: test-fast property
 
 dev-setup:
 	$(PYTHON) -m pip install -e ".[dev]"
 
-security:
-	$(PYTHON) -m bandit -q -r src tools
-	$(PYTHON) -m pip_audit --progress-spinner off
+security: prepare-artifacts
+	$(PYTHON) -c "from pathlib import Path; import shutil; shutil.rmtree(Path('$(SECURITY_AUDIT_VENV)'), ignore_errors=True)"
+	$(PYTHON) -m venv $(SECURITY_AUDIT_VENV)
+	$(SECURITY_AUDIT_PYTHON) -m pip install --upgrade pip
+	$(SECURITY_AUDIT_PYTHON) -m pip install -e ".[dev]"
+	$(SECURITY_AUDIT_PYTHON) -m bandit -q -r src tools
+	$(SECURITY_AUDIT_PYTHON) -m pip_audit --progress-spinner off
 
 release-guard:
 	$(PYTHON) tools/release_version.py check --tag "$${TAG:-}"
@@ -72,6 +86,7 @@ bench-suite:
 production-check: release-check bench-suite
 
 build:
+	$(PYTHON) -c "import importlib.util, re, setuptools, sys; ok = importlib.util.find_spec('build') is not None and tuple(int(x) for x in re.findall(r'\d+', setuptools.__version__)[:3]) >= (77, 0, 0); sys.exit(0 if ok else 'run make dev-setup first (requires build and setuptools>=77)')"
 	$(PYTHON) -m build --no-isolation
 
 wheel-smoke: prepare-artifacts

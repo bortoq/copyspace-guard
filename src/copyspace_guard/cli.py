@@ -88,6 +88,12 @@ def _load_roi_config_and_compute(
     return comp, roi_summary
 
 
+def _lower_bound_scope_text(rep: Report) -> str:
+    if rep.lower_bound_enumeration == "partial" or rep.gap_reliability == "lower_bound_partial" or not rep.bounds_complete:
+        return "partial lower bound"
+    return "fully enumerated lower bound"
+
+
 def cmd_analyze(args: argparse.Namespace) -> int:
     outdir = prepare_output_dir(Path(args.outdir))
     _validate_common_args(args)
@@ -226,10 +232,9 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     write_reports(outdir, summary)
 
     print(f"Copy-Space Guard analysis written to: {outdir}")
-    gap_rel = rep_current.gap_reliability or "unknown"
     baseline_tag = " (baseline comparison)" if current_label == "baseline" else ""
-    print(f"{current_label}: status={rep_current.status} ticks={rep_current.ticks_total} lb={rep_current.lower_bound_ticks} gap={rep_current.gap_to_lower_bound:.6f} util={rep_current.utilization:.4f} gap_rel={gap_rel}")
-    print(f"greedy:   status={rep_greedy.status} ticks={rep_greedy.ticks_total} lb={rep_greedy.lower_bound_ticks} gap={rep_greedy.gap_to_lower_bound:.6f} util={rep_greedy.utilization:.4f} gap_rel={rep_greedy.gap_reliability or 'unknown'}")
+    print(f"{current_label}: status={rep_current.status} ticks={rep_current.ticks_total} lb={rep_current.lower_bound_ticks} gap={rep_current.gap_to_lower_bound:.6f} util={rep_current.utilization:.4f} lb_enum={rep_current.lower_bound_enumeration or 'unknown'}")
+    print(f"greedy:   status={rep_greedy.status} ticks={rep_greedy.ticks_total} lb={rep_greedy.lower_bound_ticks} gap={rep_greedy.gap_to_lower_bound:.6f} util={rep_greedy.utilization:.4f} lb_enum={rep_greedy.lower_bound_enumeration or 'unknown'}")
     print(f"saved_ticks={comp['saved_ticks']} estimated_savings={comp['estimated_savings']:.2f}{baseline_tag}")
     return 0 if rep_current.status == "PASS" and rep_greedy.status == "PASS" else 2
 
@@ -311,7 +316,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     gate_fail_reasons: list[str] = []
     if args.max_gap is not None:
         if not rep.bounds_complete:
-            gate_fail_reasons.append("bounds_complete=false: gap is a lower estimate only; use --max-gap-vs-greedy or relax threshold")
+            gate_fail_reasons.append("bounds_complete=false: gap is only against a partial lower bound; use --max-gap-vs-greedy or relax threshold")
         elif rep.gap_to_lower_bound > args.max_gap:
             gate_fail_reasons.append(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} exceeds --max-gap {args.max_gap:.6f}")
     if args.max_gap_vs_greedy is not None:
@@ -357,6 +362,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
             "report_html": "report.html",
         },
     }
+    validate_summary_contract(summary)
     dump_json(outdir / "summary.json", summary)
     write_reports(outdir, summary)
     print(f"Copy-Space Guard audit written to: {outdir}")
@@ -364,7 +370,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     print(f"practical_gap={gap_vs_greedy:.6f} (vs greedy, always reliable)")
     print(
         f"theoretical_gap={rep.gap_to_lower_bound:.6f} "
-        f"(vs lower bound, {'exact' if rep.gap_reliability == 'exact' else 'lower estimate'})"
+        f"(vs {_lower_bound_scope_text(rep)})"
     )
     if gate_fail_reasons:
         print("AUDIT GATE FAIL", file=sys.stderr)
@@ -455,8 +461,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
     dump_json(outdir / "summary.json", summary)
     write_reports(outdir, summary)
     print(f"Copy-Space Guard compare written to: {outdir}")
-    print(f"schedule_a: status={rep_a.status} ticks={rep_a.ticks_total} lb={rep_a.lower_bound_ticks} gap={rep_a.gap_to_lower_bound:.6f} util={rep_a.utilization:.4f} gap_rel={rep_a.gap_reliability or 'unknown'}")
-    print(f"schedule_b: status={rep_b.status} ticks={rep_b.ticks_total} lb={rep_b.lower_bound_ticks} gap={rep_b.gap_to_lower_bound:.6f} util={rep_b.utilization:.4f} gap_rel={rep_b.gap_reliability or 'unknown'}")
+    print(f"schedule_a: status={rep_a.status} ticks={rep_a.ticks_total} lb={rep_a.lower_bound_ticks} gap={rep_a.gap_to_lower_bound:.6f} util={rep_a.utilization:.4f} lb_enum={rep_a.lower_bound_enumeration or 'unknown'}")
+    print(f"schedule_b: status={rep_b.status} ticks={rep_b.ticks_total} lb={rep_b.lower_bound_ticks} gap={rep_b.gap_to_lower_bound:.6f} util={rep_b.utilization:.4f} lb_enum={rep_b.lower_bound_enumeration or 'unknown'}")
     print(f"saved_ticks={comp['saved_ticks']} estimated_savings={comp['estimated_savings']:.2f}")
     return 0 if rep_a.status == "PASS" and rep_b.status == "PASS" else 2
 
@@ -897,8 +903,8 @@ def cmd_bench_bounds(args: argparse.Namespace) -> int:
     min_partial = min((c["slots"] for c in cases if not c["bounds_complete"]), default=9999)
     print("bench-bounds recommendation by slot count:", file=sys.stderr)
     if max_auto >= args.min_slots:
-        print(f"  slots <= {max_auto}: --bounds-mode auto (exhaustive, exact)", file=sys.stderr)
-    print(f"  slots {min_partial}-{args.max_slots}: --bounds-mode fractional_heuristic (faster, estimated)", file=sys.stderr)
+        print(f"  slots <= {max_auto}: --bounds-mode auto (fully enumerated lower bound)", file=sys.stderr)
+    print(f"  slots {min_partial}-{args.max_slots}: --bounds-mode fractional_heuristic (faster, partial lower bound)", file=sys.stderr)
     if failures:
         for failure in failures:
             print(f"FAIL {failure}", file=sys.stderr)
@@ -987,12 +993,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         slots = int(inst["slots"])
         if slots > 20:
             recommendations.append(
-                f"slots={slots}: gap_to_lower_bound is a lower estimate for large STRICT1 instances; use --max-gap-vs-greedy"
+                f"slots={slots}: gap_to_lower_bound is against a partial lower bound for large STRICT1 instances; use --max-gap-vs-greedy"
             )
             recommendations.append("recommended bounds mode: --bounds-mode fractional_heuristic")
             recommendations.append("recommended CI metric: --max-gap-vs-greedy <threshold>")
         else:
-            recommendations.append(f"slots={slots}: gap_to_lower_bound can be exact on exhaustive path")
+            recommendations.append(f"slots={slots}: gap_to_lower_bound is against a fully enumerated lower bound on the exhaustive path")
             recommendations.append("recommended bounds mode: --bounds-mode auto")
             recommendations.append("recommended CI metric: --max-gap <threshold> (optionally also --max-gap-vs-greedy)")
     if args.json:

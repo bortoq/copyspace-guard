@@ -14,6 +14,14 @@ def _is_partial_bound(reason: str | None) -> bool:
     return reason in {r.value for r in partial}
 
 
+def _gap_reliability(bounds_complete: bool) -> str:
+    return "lower_bound_complete" if bounds_complete else "lower_bound_partial"
+
+
+def _lower_bound_enumeration(bounds_complete: bool) -> str:
+    return "complete" if bounds_complete else "partial"
+
+
 def fail_report(kind: str, msg: str, **ctx: Any) -> Report:
     err = {"kind": kind, "msg": msg}
     err.update(ctx)
@@ -47,6 +55,7 @@ def _final_report(
     lb = int(lbs["lower_bound_ticks"])
     gap = ticks_total - lb if total_errors == 0 else 0
     gap_ratio = gap / lb if lb > 0 and total_errors == 0 else 0.0
+    bounds_complete = bool(lbs.get("bounds_complete", True))
     return Report(
         status="FAIL" if total_errors else "PASS",
         version=0,
@@ -64,10 +73,12 @@ def _final_report(
         lower_bound_ticks=lb,
         gap_ticks=gap,
         gap_to_lower_bound=gap_ratio,
-        gap_reliability="exact" if bool(lbs.get("bounds_complete", True)) else "lower_estimate",
+        gap_reliability=_gap_reliability(bounds_complete),
+        lower_bound_enumeration=_lower_bound_enumeration(bounds_complete),
+        optimality_certificate="none",
         gap_practical=None,
         lower_bound_witness=dict(lbs.get("lower_bound_witness", {})),
-        bounds_complete=bool(lbs.get("bounds_complete", True)),
+        bounds_complete=bounds_complete,
         bounds_mode=cast(str, lbs.get("strict1_bounds_mode")) if "strict1_bounds_mode" in lbs else None,
         bounds_complete_reason=cast(str, lbs.get("bounds_complete_reason")) if "bounds_complete_reason" in lbs else None,
         bounds_exhaustive_subset_limit=lbs.get("exhaustive_subset_limit"),
@@ -246,7 +257,7 @@ def gate_report(
         tag = f" ({rep.bounds_complete_reason})" if rep.bounds_complete_reason else ""
         reasons.append(
             "bounds_complete=false"
-            f"{tag}: gap is a lower estimate only. Use --max-gap-vs-greedy for reliable CI gating."
+            f"{tag}: gap is only against a partial lower bound. Use --max-gap-vs-greedy for reliable CI gating."
         )
     if max_gap is not None and rep.gap_to_lower_bound > max_gap:
         reasons.append(f"gap_to_lower_bound {rep.gap_to_lower_bound:.6f} > max_gap {max_gap:.6f}")

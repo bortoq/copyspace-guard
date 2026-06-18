@@ -72,6 +72,12 @@ def validate_report_contract(obj: Any, name: str = "report") -> None:
         raise ValueError(f"{name}.model must be one of {sorted(MODELS)}")
     if not isinstance(rep["errors"], list):
         raise ValueError(f"{name}.errors must be a list")
+    if rep.get("gap_reliability") not in {None, "lower_bound_complete", "lower_bound_partial"}:
+        raise ValueError(f"{name}.gap_reliability must be lower_bound_complete or lower_bound_partial")
+    if rep.get("lower_bound_enumeration") not in {None, "complete", "partial"}:
+        raise ValueError(f"{name}.lower_bound_enumeration must be complete or partial")
+    if rep.get("optimality_certificate") not in {None, "none", "exact_small_instance"}:
+        raise ValueError(f"{name}.optimality_certificate must be none or exact_small_instance")
     if not isinstance(rep["total_errors"], int) or rep["total_errors"] < 0:
         raise ValueError(f"{name}.total_errors must be int >= 0")
     if not isinstance(rep["errors_truncated"], bool):

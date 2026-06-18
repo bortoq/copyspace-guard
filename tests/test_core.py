@@ -591,6 +591,76 @@ class SchemaFilesTests(unittest.TestCase):
             schema = json.loads((ROOT / "schemas" / schema_name).read_text(encoding="utf-8"))
             Draft202012Validator(schema).validate(obj)
 
+    def test_summary_schema_accepts_audit_and_compare_shapes(self):
+        try:
+            from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+        except Exception:
+            self.skipTest("jsonschema is not installed")
+
+        inst = instance_from_csv(ROOT / "examples" / "ring15.csv", bw=256)
+        rep = validate_schedule(inst, solve_greedy(inst)).to_dict()
+        schema = json.loads((ROOT / "schemas" / "summary_v0.schema.json").read_text(encoding="utf-8"))
+        validator = Draft202012Validator(schema)
+
+        audit_summary = {
+            "instance": inst,
+            "current_label": "customer_current",
+            "candidate_label": "customer_current",
+            "reports": {"current": rep, "customer_current": rep},
+            "comparison": {
+                "comparable": True,
+                "comparison_note": "Audit-only mode",
+                "saved_ticks": 0,
+                "saved_ticks_pct": 0.0,
+                "gap_reduction_ticks": 0,
+                "utilization_delta": 0.0,
+                "estimated_savings": 0.0,
+                "cost_per_tick": 0.0,
+            },
+            "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}),
+            "artifacts": {
+                "instance": "instance.json",
+                "schedule_current": "schedule_customer_current.json",
+                "schedule_current_csv": "schedule_customer_current.csv",
+                "schedule_greedy": None,
+                "schedule_greedy_csv": None,
+                "report_current": "report_customer_current.json",
+                "report_greedy": "report_customer_current.json",
+                "report_markdown": "report.md",
+                "report_html": "report.html",
+            },
+        }
+        compare_summary = {
+            "instance": inst,
+            "current_label": "schedule_a",
+            "candidate_label": "schedule_b",
+            "reports": {"current": rep, "schedule_a": rep, "schedule_b": rep},
+            "comparison": {
+                "comparable": True,
+                "comparison_note": "Compare mode",
+                "saved_ticks": 0,
+                "saved_ticks_pct": 0.0,
+                "gap_reduction_ticks": 0,
+                "utilization_delta": 0.0,
+                "estimated_savings": 0.0,
+                "cost_per_tick": 0.0,
+            },
+            "roi": compute_roi({"comparable": True, "saved_ticks": 0}, {}),
+            "artifacts": {
+                "instance": "instance.json",
+                "schedule_current": "schedule_schedule_a.json",
+                "schedule_current_csv": "schedule_schedule_a.csv",
+                "schedule_greedy": "schedule_schedule_b.json",
+                "schedule_greedy_csv": "schedule_schedule_b.csv",
+                "report_current": "report_schedule_a.json",
+                "report_greedy": "report_schedule_b.json",
+                "report_markdown": "report.md",
+                "report_html": "report.html",
+            },
+        }
+        validator.validate(audit_summary)
+        validator.validate(compare_summary)
+
     def test_bounds_reason_schema_enum_matches_constants(self):
         from copyspace_guard.bounds_reason import BoundsReason
         reasons = list(BoundsReason)
@@ -812,24 +882,24 @@ class ReportRenderingTests(unittest.TestCase):
             self.assertTrue((Path(td) / "report.html").exists())
 
     def test_gate_report_handles_none_thresholds(self):
-        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "utilization": 0.8, "gap_to_lower_bound": 0.5, "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "gap_reliability": "estimate", "errors": []})
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "utilization": 0.8, "gap_to_lower_bound": 0.5, "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "gap_reliability": "lower_bound_partial", "errors": []})
         self.assertEqual(gate_report(rep), (True, []))
 
     def test_gate_report_accepts_passing_max_gap(self):
-        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.1, "utilization": 0.9, "gap_reliability": "exact", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.1, "utilization": 0.9, "gap_reliability": "lower_bound_complete", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
         ok, reasons = gate_report(rep, max_gap=0.2)
         self.assertTrue(ok)
         self.assertEqual(reasons, [])
 
     def test_gate_report_rejects_exceeding_max_gap(self):
-        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.5, "utilization": 0.9, "gap_reliability": "exact", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.5, "utilization": 0.9, "gap_reliability": "lower_bound_complete", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
         ok, reasons = gate_report(rep, max_gap=0.2)
         self.assertFalse(ok)
         self.assertGreater(len(reasons), 0)
 
     def test_gate_report_max_gap_vs_greedy(self):
         from copyspace_guard.validate import gate_report as validate_report
-        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.3, "utilization": 0.9, "gap_reliability": "estimate", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
+        rep = Report(**{"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 10, "gap_to_lower_bound": 0.3, "utilization": 0.9, "gap_reliability": "lower_bound_partial", "lower_bound_ticks": 5, "max_degree_chunks": 3, "bits_total": 100, "bits_per_tick": 20, "expected_bits_per_tick": 100, "errors": []})
         ok, reasons = validate_report(rep, max_gap=0.2)
         self.assertFalse(ok)
         self.assertGreater(len(reasons), 0)
@@ -840,8 +910,8 @@ class ReportRenderingTests(unittest.TestCase):
             "current_label": "baseline",
             "candidate_label": "greedy",
             "reports": {
-                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 5, "bits_total": 1024, "bits_per_tick": 204.8, "utilization": 0.8, "lower_bound_ticks": 4, "gap_to_lower_bound": 0.25, "gap_reliability": "exact", "max_degree_chunks": 3, "errors": []},
-                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 5, "bits_total": 1024, "bits_per_tick": 204.8, "utilization": 0.8, "lower_bound_ticks": 4, "gap_to_lower_bound": 0.25, "gap_reliability": "exact", "max_degree_chunks": 3, "errors": []},
+                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 5, "bits_total": 1024, "bits_per_tick": 204.8, "utilization": 0.8, "lower_bound_ticks": 4, "gap_to_lower_bound": 0.25, "gap_reliability": "lower_bound_complete", "max_degree_chunks": 3, "errors": []},
+                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 5, "bits_total": 1024, "bits_per_tick": 204.8, "utilization": 0.8, "lower_bound_ticks": 4, "gap_to_lower_bound": 0.25, "gap_reliability": "lower_bound_complete", "max_degree_chunks": 3, "errors": []},
             },
             "comparison": {"comparable": True, "saved_ticks": 0, "saved_ticks_pct": 0.0, "gap_reduction_ticks": 0, "utilization_delta": 0.0},
             "roi": {},
@@ -857,8 +927,8 @@ class ReportRenderingTests(unittest.TestCase):
             "current_label": "baseline",
             "candidate_label": "greedy",
             "reports": {
-                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
-                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
+                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "lower_bound_complete", "max_degree_chunks": 1, "errors": []},
+                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "lower_bound_complete", "max_degree_chunks": 1, "errors": []},
             },
             "comparison": {"comparable": True, "saved_ticks": 0, "saved_ticks_pct": 0.0, "gap_reduction_ticks": 0, "utilization_delta": 0.0},
             "roi": {"savings_kind": "baseline_comparison"},
@@ -906,8 +976,8 @@ class ReportRenderingTests(unittest.TestCase):
             "current_label": "<script>alert('cur')</script>",
             "candidate_label": "greedy",
             "reports": {
-                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
-                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "exact", "max_degree_chunks": 1, "errors": []},
+                "greedy": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "lower_bound_complete", "max_degree_chunks": 1, "errors": []},
+                "baseline": {"status": "PASS", "version": 0, "model": "STRICT1", "ticks_total": 1, "bits_total": 100, "bits_per_tick": 100, "utilization": 1.0, "lower_bound_ticks": 1, "gap_to_lower_bound": 0.0, "gap_reliability": "lower_bound_complete", "max_degree_chunks": 1, "errors": []},
             },
             "comparison": {"comparable": True, "saved_ticks": 0, "saved_ticks_pct": 0.0, "gap_reduction_ticks": 0, "utilization_delta": 0.0},
             "roi": {},

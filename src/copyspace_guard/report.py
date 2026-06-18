@@ -45,6 +45,12 @@ def _labels(summary: Dict[str, Any]) -> Tuple[str, str, Report, Report]:
     return current_label, candidate_label, cur, cand
 
 
+def _lower_bound_scope(rep: Report) -> str:
+    if rep.lower_bound_enumeration == "partial" or rep.gap_reliability == "lower_bound_partial" or not rep.bounds_complete:
+        return "partial lower bound"
+    return "fully enumerated lower bound"
+
+
 def metric_table(current: Report, candidate: Report, comparison: Dict[str, Any], current_label: str = "current", candidate_label: str = "candidate") -> str:
     rows = [
         ("Validation status", current.status, candidate.status),
@@ -211,7 +217,8 @@ The {current_label_text} schedule is treated as the current strategy. The {candi
 - `capacity_lower_bound` is derived from total chunks divided by full-graph per-tick matching capacity.
 - `density_lower_bound` is derived from all subset matching-capacity constraints when the slot count is within the exhaustive limit.
 - `lower_bound_ticks` is the maximum of currently implemented deterministic lower bounds.
-- `gap_to_lower_bound` estimates how far the schedule is from that lower bound under the declared {model} model.
+- `gap_to_lower_bound` estimates how far the schedule is from the currently implemented deterministic lower bound under the declared {model} model.
+- A fully enumerated lower bound is still not a proof of global optimality unless an explicit optimality certificate is present.
 - A positive saved-ticks number is potential time/capacity savings per workload run before deeper topology-specific modeling.
 - The tool is metadata-only: it requires transfer demand metadata, not payload data.
 - The CI gate can prevent future schedule regressions after scheduler, storage, ETL or infrastructure changes.
@@ -242,8 +249,8 @@ def _card_html(title: str, value: str, sub: str = "") -> str:
 def _badge_block(summary: Dict[str, Any]) -> str:
     _, _, _, cand = _labels(summary)
     badges = ""
-    if getattr(cand, "gap_reliability", "exact") == "lower_estimate":
-        badges += '<div class="badge warn">⚠ gap_to_lower_bound is a lower estimate (bounds_complete=false). Use gap_vs_greedy for reliable CI thresholding.</div>'
+    if getattr(cand, "gap_reliability", "lower_bound_complete") == "lower_bound_partial":
+        badges += '<div class="badge warn">⚠ gap_to_lower_bound is measured against a partial lower bound. Use gap_vs_greedy for reliable CI thresholding.</div>'
     if not badges:
         badges = '<div class="badge">Metadata-only deterministic audit</div>'
     return badges
@@ -253,8 +260,7 @@ def executive_cards(summary: Dict[str, Any]) -> str:
     current_label, candidate_label, cur, cand = _labels(summary)
     comp = summary["comparison"]
     roi = summary.get("roi") or {}
-    gap_rel = str(cand.gap_reliability) if cand.gap_reliability else "unknown"
-    gap_sub = f"to deterministic lower bound ({gap_rel})"
+    gap_sub = f"to {_lower_bound_scope(cand)}"
     cards = [
         _card_html("Current ticks", f"{cur.ticks_total:,}", current_label),
         _card_html("Candidate ticks", f"{cand.ticks_total:,}", candidate_label),

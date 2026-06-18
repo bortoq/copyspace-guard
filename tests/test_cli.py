@@ -116,6 +116,47 @@ class CliTests(unittest.TestCase):
             rc = run_cli("validate-artifact", "--kind", "summary", str(out / "summary.json"))
             self.assertEqual(rc.returncode, 0)
 
+    def test_audit_summary_validates_against_published_json_schema(self):
+        try:
+            from jsonschema import Draft202012Validator
+        except Exception:
+            self.skipTest("jsonschema is not installed")
+
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "audit"
+            rc = run_cli(
+                "audit",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule-csv", "examples/current_schedule.csv",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            schema = json.loads((ROOT / "schemas" / "summary_v0.schema.json").read_text(encoding="utf-8"))
+            Draft202012Validator(schema).validate(summary)
+
+    def test_compare_summary_validates_against_published_json_schema(self):
+        try:
+            from jsonschema import Draft202012Validator
+        except Exception:
+            self.skipTest("jsonschema is not installed")
+
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "compare"
+            rc = run_cli(
+                "compare",
+                "--demands", "examples/ring15.csv",
+                "--bw", "256",
+                "--schedule-a", "examples/current_schedule.csv",
+                "--schedule-b", "examples/current_schedule.csv",
+                "--outdir", str(out),
+            )
+            self.assertEqual(rc.returncode, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            schema = json.loads((ROOT / "schemas" / "summary_v0.schema.json").read_text(encoding="utf-8"))
+            Draft202012Validator(schema).validate(summary)
+
     def test_file_output_guardrails_apply_to_cli_writes(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -829,11 +870,20 @@ class BuildContractTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn("test-fast:", makefile)
         self.assertIn("test-full:", makefile)
+        self.assertIn("property-smoke:", makefile)
 
     def test_makefile_build_target_does_not_reinstall_project(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         build_section = makefile.split("\nbuild:\n", 1)[1].split("\n\n", 1)[0]
         self.assertNotIn('pip install -e ".[dev]"', build_section)
+        self.assertIn("run make dev-setup first", build_section)
+
+    def test_makefile_security_uses_clean_audit_venv(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        security_section = makefile.split("\nsecurity:", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("SECURITY_AUDIT_VENV", makefile)
+        self.assertIn("$(SECURITY_AUDIT_VENV)", security_section)
+        self.assertIn('pip install -e ".[dev]"', security_section)
 
     def test_ci_workflow_includes_windows_runner(self):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -843,6 +893,7 @@ class BuildContractTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         self.assertIn("schedule:", workflow)
         self.assertIn("property", workflow)
+        self.assertIn("Property smoke", workflow)
 
     def test_ci_workflow_uses_make_wheel_smoke(self):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -855,10 +906,17 @@ class BuildContractTests(unittest.TestCase):
     def test_readme_mentions_windows_support(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("Windows", readme)
+        self.assertIn("lower bound", readme)
+        self.assertIn("not necessarily the global optimum", readme)
 
-    def test_pyproject_uses_pep621_license_table(self):
+    def test_pyproject_uses_spdx_license_string(self):
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        self.assertIn('license = {text = "Apache-2.0"}', pyproject)
+        self.assertIn('license = "Apache-2.0"', pyproject)
+        self.assertNotIn('license = {text = "Apache-2.0"}', pyproject)
+
+    def test_makefile_prefers_python_on_windows(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("PYTHON ?= python", makefile)
 
 
 class SecurityCliTests(unittest.TestCase):

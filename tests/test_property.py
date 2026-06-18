@@ -145,12 +145,12 @@ else:
 
         @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
         @given(instance_strategy(max_slots=5, max_demands=6, max_bits=4))
-        def test_bounds_complete_implies_reliability_exact(self, inst: dict[str, Any]) -> None:
+        def test_bounds_complete_implies_reliability_tracks_lower_bound_enumeration(self, inst: dict[str, Any]) -> None:
             assume(inst["model"] == "STRICT1")
             lbs = lower_bound_components(inst, strict1_bounds_mode="auto")
             rep = validate_schedule(inst, solve_baseline(inst))
             if lbs["bounds_complete"]:
-                self.assertEqual(rep.gap_reliability, "exact")
+                self.assertEqual(rep.gap_reliability, "lower_bound_complete")
 
         @settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
         @given(instance_strategy(max_slots=50, max_demands=8, max_bits=4))
