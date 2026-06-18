@@ -16,6 +16,19 @@ def run_cli(*args, check=True):
     return subprocess.run(cmd, cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check)
 
 
+def can_create_directory_symlink() -> bool:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        target = root / "target"
+        link = root / "link"
+        target.mkdir()
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+        return link.is_symlink()
+
+
 class CliTests(unittest.TestCase):
     def test_version_command(self):
         rc = run_cli("--version")
@@ -804,6 +817,15 @@ class CliErrorTests(unittest.TestCase):
             self.assertEqual(summary["roi"]["savings_kind"], "baseline_comparison")
 
 
+class BuildContractTests(unittest.TestCase):
+    def test_makefile_avoids_tmp_specific_paths(self):
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertNotIn("/tmp/copyspace-guard", makefile)
+
+    def test_symlink_capability_probe_returns_bool(self):
+        self.assertIsInstance(can_create_directory_symlink(), bool)
+
+
 class SecurityCliTests(unittest.TestCase):
     def test_outdir_path_traversal_rejected(self):
         with tempfile.TemporaryDirectory() as td:
@@ -815,6 +837,9 @@ class SecurityCliTests(unittest.TestCase):
             self.assertNotEqual(rc.returncode, 0)
 
     def test_outdir_path_traversal_with_symlink_rejected(self):
+        if not can_create_directory_symlink():
+            self.skipTest("directory symlinks are unavailable in this environment")
+
         with tempfile.TemporaryDirectory() as td:
             link = Path(td) / "outlink"
             link.symlink_to(Path(td) / ".." / "etc", target_is_directory=True)
